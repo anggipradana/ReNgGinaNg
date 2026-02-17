@@ -23,11 +23,11 @@
 
 **ReNgGinaNg** is the next evolution of automated reconnaissance — built on top of [reNgine 2.2.0](https://github.com/yogeshojha/rengine) and redesigned for professional red team and blue team operations.
 
-This release delivers a **Threat Intelligence module**, **bilingual PDF reporting (EN/ID)**, **dark web breach monitoring**, and a fully rebranded, telemetry-free experience.
+This release delivers a **Threat Intelligence module**, **bilingual PDF reporting (EN/ID)**, **dark web breach monitoring**, and a fully rebranded experience.
 
 ### Key Highlights
 
-- Fully self-hosted, zero telemetry, zero phone-home
+- Fully self-hosted
 - Threat Intel dashboard with OTX AlienVault & LeakCheck integration
 - Bilingual vulnerability assessment PDF reports (English / Bahasa Indonesia)
 - WPScan API integration for WordPress vulnerability scanning
@@ -52,6 +52,7 @@ This release delivers a **Threat Intelligence module**, **bilingual PDF reportin
 | WPScan Integration | - | WordPress vulnerability scanning |
 | Manual Threat Indicators | - | Add/manage indicators manually |
 | Dashboard TI Overview | - | Pulse count, leak count, risk cards |
+| Google Chat Notifications | - | Webhook integration for Google Chat |
 | Branding | reNgine | ReNgGinaNg (fully independent) |
 
 ### New API Endpoints
