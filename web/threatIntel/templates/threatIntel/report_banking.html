@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+  <meta charset="UTF-8" />
+  <title>Threat Intelligence Report (Banking)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm;
+      @bottom-left {
+        {% if show_footer %}
+        content: "{{footer_text}}";
+        {% else %}
+        content: '';
+        {% endif %}
+        font-family: 'Inter', sans-serif;
+        font-size: 8pt;
+        color: #888;
+        border-top: 0.5px solid #ddd;
+        padding-top: 2mm;
+      }
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Inter', sans-serif;
+        font-size: 9pt;
+        color: #888;
+      }
+    }
+    @page :first {
+      margin: 0 !important;
+    }
+
+    html {
+      color: #333;
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      font-size: 10pt;
+      line-height: 1.5;
+    }
+    body { margin: 0; padding: 0; }
+    * { font-family: inherit; }
+
+    /* ─── COVER ─── */
+    #cover {
+      position: relative;
+      overflow: hidden;
+      background-color: {{secondary_color}};
+      width: 210mm;
+      height: 297mm;
+      page-break-after: always;
+    }
+    .cover-classification {
+      position: absolute;
+      top: 12mm; left: 15mm; right: 15mm;
+      text-align: center;
+      font-size: 8pt; font-weight: 500;
+      letter-spacing: 4px; text-transform: uppercase;
+      color: {{primary_color}};
+      border-top: 2px solid {{primary_color}};
+      border-bottom: 2px solid {{primary_color}};
+      padding: 2mm 0;
+    }
+    .cover-logo {
+      position: absolute; top: 30mm; left: 18mm;
+    }
+    .cover-logo img {
+      max-width: 50mm; max-height: 20mm; object-fit: contain;
+    }
+    .cover-content {
+      position: absolute; top: 65mm; left: 18mm; right: 18mm;
+    }
+    .cover-company-name {
+      font-size: 11pt; font-weight: 400;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 2px; text-transform: uppercase;
+      margin-bottom: 5mm;
+    }
+    .cover-accent-line {
+      width: 20mm; height: 1.5px;
+      background-color: {{primary_color}};
+      margin-bottom: 8mm;
+    }
+    .cover-title {
+      font-size: 28pt; font-weight: 200;
+      color: {{primary_color}};
+      text-transform: uppercase;
+      letter-spacing: 2px; line-height: 1.2;
+      margin: 0 0 4mm 0;
+    }
+    .cover-subtitle {
+      font-size: 14pt; font-weight: 300;
+      color: rgba(255,255,255,0.7);
+      margin: 0 0 8mm 0;
+    }
+    .cover-gradient-divider {
+      width: 90%; height: 1.5px;
+      background: linear-gradient(to right, {{primary_color}}, transparent);
+      margin-bottom: 10mm;
+    }
+    .cover-meta {
+      position: absolute; top: 180mm; left: 18mm; right: 18mm;
+    }
+    .cover-meta-row {
+      display: flex; margin-bottom: 3mm;
+    }
+    .cover-meta-label {
+      font-size: 8pt; font-weight: 500;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase; letter-spacing: 1px;
+      width: 40mm;
+    }
+    .cover-meta-value {
+      font-size: 10pt; font-weight: 300;
+      color: rgba(255,255,255,0.85);
+    }
+    .cover-footer {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background-color: {{primary_color}};
+      color: {{secondary_color}};
+      padding: 8mm 15mm;
+      font-size: 9pt; text-align: center;
+    }
+
+    /* ─── SECTIONS ─── */
+    h1 {
+      font-weight: 200; font-size: 22pt;
+      color: {{primary_color}};
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 2px solid {{primary_color}};
+      padding-bottom: 3mm;
+      margin: 8mm 0 5mm 0;
+    }
+    h2 {
+      font-weight: 400; font-size: 14pt;
+      color: {{primary_color}};
+      margin: 6mm 0 3mm 0;
+    }
+    h3 {
+      font-weight: 500; font-size: 11pt;
+      color: #333;
+      margin: 4mm 0 2mm 0;
+    }
+
+    /* ─── TABLES ─── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 3mm 0 5mm 0;
+      font-size: 9pt;
+    }
+    th {
+      background-color: {{primary_color}};
+      color: white;
+      font-weight: 500;
+      text-align: left;
+      padding: 2mm 3mm;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td {
+      padding: 2mm 3mm;
+      border-bottom: 0.5px solid #e0e0e0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td {
+      background-color: #f8f9fa;
+    }
+
+    /* ─── BADGES ─── */
+    .badge {
+      display: inline-block;
+      padding: 1mm 3mm;
+      border-radius: 2mm;
+      font-size: 7pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-critical { background: #d32f2f; color: white; }
+    .badge-high { background: #f57c00; color: white; }
+    .badge-medium { background: #fbc02d; color: #333; }
+    .badge-low { background: #388e3c; color: white; }
+    .badge-info { background: #1976d2; color: white; }
+
+    /* ─── CARDS ─── */
+    .stat-row {
+      display: flex;
+      gap: 4mm;
+      margin: 4mm 0;
+    }
+    .stat-card {
+      flex: 1;
+      background: #f5f5f5;
+      border-left: 3px solid {{primary_color}};
+      padding: 3mm 4mm;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 18pt;
+      font-weight: 600;
+      color: {{primary_color}};
+    }
+    .stat-card .label {
+      font-size: 7pt;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── RISK METER ─── */
+    .risk-meter {
+      background: #e0e0e0;
+      height: 8mm;
+      border-radius: 2mm;
+      overflow: hidden;
+      margin: 3mm 0;
+    }
+    .risk-meter-fill {
+      height: 100%;
+      border-radius: 2mm;
+    }
+
+    /* ─── MISC ─── */
+    .page-break { page-break-before: always; }
+    .text-muted { color: #888; }
+    .text-danger { color: #d32f2f; }
+    .text-warning { color: #f57c00; }
+    code {
+      font-family: 'Courier New', monospace;
+      font-size: 8pt;
+      background: #f5f5f5;
+      padding: 0.5mm 1.5mm;
+      border-radius: 1mm;
+    }
+    .toc-item {
+      margin: 2mm 0;
+      font-size: 10pt;
+    }
+    .toc-num {
+      font-weight: 600;
+      color: {{primary_color}};
+      margin-right: 3mm;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- COVER PAGE                                  -->
+<!-- ════════════════════════════════════════════ -->
+<div id="cover">
+  <div class="cover-classification">{{classification_label}}</div>
+
+  {% if company_logo_path %}
+  <div class="cover-logo">
+    <img src="file://{{company_logo_path}}" alt="Logo" />
+  </div>
+  {% endif %}
+
+  <div class="cover-content">
+    {% if company_name %}
+    <div class="cover-company-name">{{company_name}}</div>
+    {% endif %}
+    <div class="cover-accent-line"></div>
+    <div class="cover-title">Threat Intelligence<br/>Report</div>
+    <div class="cover-subtitle">Banking & Financial Sector</div>
+    <div class="cover-gradient-divider"></div>
+  </div>
+
+  <div class="cover-meta">
+    {% if document_number %}
+    <div class="cover-meta-row">
+      <div class="cover-meta-label">{% if lang == 'id' %}No. Dokumen{% else %}Document No.{% endif %}</div>
+      <div class="cover-meta-value">{{document_number}}</div>
+    </div>
+    {% endif %}
+    <div class="cover-meta-row">
+      <div class="cover-meta-label">{% if lang == 'id' %}Proyek{% else %}Project{% endif %}</div>
+      <div class="cover-meta-value">{{project.name}}</div>
+    </div>
+    <div class="cover-meta-row">
+      <div class="cover-meta-label">{% if lang == 'id' %}Tanggal Laporan{% else %}Report Date{% endif %}</div>
+      <div class="cover-meta-value">{{report_date}}</div>
+    </div>
+    <div class="cover-meta-row">
+      <div class="cover-meta-label">{% if lang == 'id' %}Dibuat Pada{% else %}Generated{% endif %}</div>
+      <div class="cover-meta-value">{{report_time}}</div>
+    </div>
+    {% if company_name %}
+    <div class="cover-meta-row">
+      <div class="cover-meta-label">{% if lang == 'id' %}Disusun Oleh{% else %}Prepared By{% endif %}</div>
+      <div class="cover-meta-value">{{company_name}}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="cover-footer">
+    {{classification_label}}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS                           -->
+<!-- ════════════════════════════════════════════ -->
+{% if lang == 'id' %}
+<h1>Daftar Isi</h1>
+<div class="toc-item"><span class="toc-num">1.</span> Kontrol Dokumen</div>
+<div class="toc-item"><span class="toc-num">2.</span> Ringkasan Eksekutif</div>
+<div class="toc-item"><span class="toc-num">3.</span> Tinjauan Ancaman Keuangan</div>
+<div class="toc-item"><span class="toc-num">4.</span> Indikator Kompromi (IoC)</div>
+<div class="toc-item"><span class="toc-num">5.</span> Sorotan Kerentanan (CVE)</div>
+<div class="toc-item"><span class="toc-num">6.</span> Pemantauan Kebocoran Data</div>
+<div class="toc-item"><span class="toc-num">7.</span> Ringkasan Tingkat Keparahan</div>
+<div class="toc-item"><span class="toc-num">8.</span> Rekomendasi Tindakan & Dampak</div>
+{% else %}
+<h1>Table of Contents</h1>
+<div class="toc-item"><span class="toc-num">1.</span> Document Control</div>
+<div class="toc-item"><span class="toc-num">2.</span> Executive Summary</div>
+<div class="toc-item"><span class="toc-num">3.</span> Financial Threat Overview</div>
+<div class="toc-item"><span class="toc-num">4.</span> Indicators of Compromise (IoC)</div>
+<div class="toc-item"><span class="toc-num">5.</span> Vulnerability Highlights (CVE)</div>
+<div class="toc-item"><span class="toc-num">6.</span> Data Breach & Exposure Monitoring</div>
+<div class="toc-item"><span class="toc-num">7.</span> Severity & Triage Summary</div>
+<div class="toc-item"><span class="toc-num">8.</span> Recommended Actions & Impact</div>
+{% endif %}
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 1. DOCUMENT CONTROL                         -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>1. Kontrol Dokumen</h1>
+<table>
+  <tr><th style="width:35%">Kolom</th><th>Nilai</th></tr>
+  {% if document_number %}
+  <tr><td><strong>Nomor Dokumen</strong></td><td>{{document_number}}</td></tr>
+  {% endif %}
+  <tr><td><strong>Klasifikasi</strong></td><td>{{classification_label}}</td></tr>
+  <tr><td><strong>Proyek</strong></td><td>{{project.name}}</td></tr>
+  <tr><td><strong>Tanggal Laporan</strong></td><td>{{report_date}}</td></tr>
+  {% if company_name %}
+  <tr><td><strong>Disusun Oleh</strong></td><td>{{company_name}}</td></tr>
+  {% endif %}
+  {% if company_address %}
+  <tr><td><strong>Alamat</strong></td><td>{{company_address}}</td></tr>
+  {% endif %}
+  {% if company_email %}
+  <tr><td><strong>Email Kontak</strong></td><td>{{company_email}}</td></tr>
+  {% endif %}
+  {% if company_website %}
+  <tr><td><strong>Website</strong></td><td>{{company_website}}</td></tr>
+  {% endif %}
+  <tr><td><strong>Domain yang Dipantau</strong></td><td>{{domains_monitored}}</td></tr>
+</table>
+{% else %}
+<h1>1. Document Control</h1>
+<table>
+  <tr><th style="width:35%">Field</th><th>Value</th></tr>
+  {% if document_number %}
+  <tr><td><strong>Document Number</strong></td><td>{{document_number}}</td></tr>
+  {% endif %}
+  <tr><td><strong>Classification</strong></td><td>{{classification_label}}</td></tr>
+  <tr><td><strong>Project</strong></td><td>{{project.name}}</td></tr>
+  <tr><td><strong>Report Date</strong></td><td>{{report_date}}</td></tr>
+  {% if company_name %}
+  <tr><td><strong>Prepared By</strong></td><td>{{company_name}}</td></tr>
+  {% endif %}
+  {% if company_address %}
+  <tr><td><strong>Address</strong></td><td>{{company_address}}</td></tr>
+  {% endif %}
+  {% if company_email %}
+  <tr><td><strong>Contact Email</strong></td><td>{{company_email}}</td></tr>
+  {% endif %}
+  {% if company_website %}
+  <tr><td><strong>Website</strong></td><td>{{company_website}}</td></tr>
+  {% endif %}
+  <tr><td><strong>Domains Monitored</strong></td><td>{{domains_monitored}}</td></tr>
+</table>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 2. EXECUTIVE SUMMARY                        -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>2. Ringkasan Eksekutif</h1>
+
+<p>Laporan ini menyajikan penilaian intelijen ancaman komprehensif untuk proyek <strong>{{project.name}}</strong>, dengan fokus pada ancaman sektor perbankan dan keuangan. Analisis mencakup pemantauan pulse ancaman melalui OTX AlienVault, pemantauan kebocoran kredensial melalui LeakCheck, serta indikator yang ditambahkan secara manual.</p>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="value">{{overall_risk}}</div>
+    <div class="label">Risk Score / 100</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_pulses}}</div>
+    <div class="label">Threat Pulses</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_malware}}</div>
+    <div class="label">Malware Samples</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_leaks}}</div>
+    <div class="label">Leaked Credentials</div>
+  </div>
+</div>
+
+<h3>Penilaian Risiko Keseluruhan</h3>
+<div class="risk-meter">
+  <div class="risk-meter-fill" style="width: {{overall_risk}}%; background: {% if overall_risk >= 70 %}#d32f2f{% elif overall_risk >= 40 %}#f57c00{% else %}#388e3c{% endif %};"></div>
+</div>
+<p>
+  {% if overall_risk >= 70 %}
+  <span class="badge badge-critical">CRITICAL</span> Tingkat ancaman kritis. Diperlukan tindakan segera untuk mengatasi ancaman dan paparan yang teridentifikasi.
+  {% elif overall_risk >= 40 %}
+  <span class="badge badge-high">HIGH</span> Tingkat ancaman tinggi. Disarankan remediasi segera untuk masalah yang teridentifikasi.
+  {% elif overall_risk >= 20 %}
+  <span class="badge badge-medium">MEDIUM</span> Tingkat ancaman sedang terdeteksi. Disarankan pemantauan dan remediasi terencana.
+  {% else %}
+  <span class="badge badge-low">LOW</span> Tingkat ancaman rendah. Lanjutkan pemantauan rutin dan pertahankan postur keamanan.
+  {% endif %}
+</p>
+
+<h3>Temuan Utama</h3>
+<ul>
+  <li><strong>{{banking_pulses|length}}</strong> threat pulse terkait keuangan/perbankan terdeteksi</li>
+  <li><strong>{{cves|length}}</strong> referensi CVE ditemukan dalam threat intelligence</li>
+  <li><strong>{{total_leaks}}</strong> leaked credential ditemukan di seluruh domain yang dipantau</li>
+  <li><strong>{{total_malware}}</strong> malware sample terkait dengan domain yang dipantau</li>
+  <li><strong>{{domains_monitored}}</strong> domain dipantau secara aktif</li>
+  {% if manual_indicators %}
+  <li><strong>{{manual_indicators|length}}</strong> manual indicator dilacak</li>
+  {% endif %}
+</ul>
+
+{% else %}
+<h1>2. Executive Summary</h1>
+
+<p>This report provides a comprehensive threat intelligence assessment for the <strong>{{project.name}}</strong> project, focusing on banking and financial sector threats. The analysis covers threat pulse monitoring via OTX AlienVault, credential exposure monitoring via LeakCheck, and manually added indicators.</p>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="value">{{overall_risk}}</div>
+    <div class="label">Risk Score / 100</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_pulses}}</div>
+    <div class="label">Threat Pulses</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_malware}}</div>
+    <div class="label">Malware Samples</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{total_leaks}}</div>
+    <div class="label">Leaked Credentials</div>
+  </div>
+</div>
+
+<h3>Overall Risk Assessment</h3>
+<div class="risk-meter">
+  <div class="risk-meter-fill" style="width: {{overall_risk}}%; background: {% if overall_risk >= 70 %}#d32f2f{% elif overall_risk >= 40 %}#f57c00{% else %}#388e3c{% endif %};"></div>
+</div>
+<p>
+  {% if overall_risk >= 70 %}
+  <span class="badge badge-critical">CRITICAL</span> The threat level is critical. Immediate action is required to address identified threats and exposures.
+  {% elif overall_risk >= 40 %}
+  <span class="badge badge-high">HIGH</span> The threat level is elevated. Prompt remediation is recommended for identified issues.
+  {% elif overall_risk >= 20 %}
+  <span class="badge badge-medium">MEDIUM</span> Moderate threat level detected. Monitoring and planned remediation is advised.
+  {% else %}
+  <span class="badge badge-low">LOW</span> Low threat level. Continue routine monitoring and maintain security posture.
+  {% endif %}
+</p>
+
+<h3>Key Findings</h3>
+<ul>
+  <li><strong>{{banking_pulses|length}}</strong> financial/banking-related threat pulse(s) detected</li>
+  <li><strong>{{cves|length}}</strong> CVE vulnerability reference(s) found in threat intelligence</li>
+  <li><strong>{{total_leaks}}</strong> leaked credential(s) discovered across monitored domains</li>
+  <li><strong>{{total_malware}}</strong> malware sample(s) associated with monitored domains</li>
+  <li><strong>{{domains_monitored}}</strong> domain(s) actively monitored</li>
+  {% if manual_indicators %}
+  <li><strong>{{manual_indicators|length}}</strong> manual indicator(s) tracked</li>
+  {% endif %}
+</ul>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 3. FINANCIAL THREAT OVERVIEW                -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>3. Tinjauan Ancaman Keuangan</h1>
+<p>Pulse ancaman berikut diidentifikasi relevan dengan sektor perbankan dan keuangan berdasarkan pencocokan kata kunci: <em>{{banking_keywords|join:", "}}</em>.</p>
+{% else %}
+<h1>3. Financial Threat Overview</h1>
+<p>The following threat pulses were identified as relevant to the banking and financial sector based on keyword matching: <em>{{banking_keywords|join:", "}}</em>.</p>
+{% endif %}
+
+{% if banking_pulses %}
+<table>
+  <thead>
+    <tr>
+      <th style="width:35%">Pulse Name</th>
+      <th>Created</th>
+      <th>Adversary</th>
+      <th>Tags</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in banking_pulses %}
+    <tr>
+      <td>{{p.name|truncatechars:60}}</td>
+      <td>{{p.created|truncatechars:10}}</td>
+      <td>{% if p.adversary %}<span class="badge badge-critical">{{p.adversary}}</span>{% else %}-{% endif %}</td>
+      <td>
+        {% for tag in p.tags|slice:":5" %}
+        <span class="badge badge-info">{{tag}}</span>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">{% if lang == 'id' %}Tidak ada threat pulse khusus perbankan/keuangan yang terdeteksi selama periode analisis ini.{% else %}No banking/financial-specific threat pulses were detected during this analysis period.{% endif %}</p>
+{% endif %}
+
+{% if otx_data_list %}
+<h2>{% if lang == 'id' %}Ringkasan Per Domain{% else %}Per-Domain Threat Summary{% endif %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Domain</th>
+      <th>Pulse</th>
+      <th>Malware</th>
+      <th>Passive DNS</th>
+      <th>URL</th>
+      <th>Reputation</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for od in otx_data_list %}
+    <tr>
+      <td><strong>{{od.domain.name}}</strong></td>
+      <td>{{od.pulse_count}}</td>
+      <td>{% if od.malware_count > 0 %}<span class="text-danger">{{od.malware_count}}</span>{% else %}0{% endif %}</td>
+      <td>{{od.passive_dns_count}}</td>
+      <td>{{od.url_count}}</td>
+      <td>{{od.reputation}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 4. INDICATORS OF COMPROMISE                 -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>4. Indikator Kompromi (IoC)</h1>
+<p>Indikator kompromi berikut diekstrak dari pulse ancaman yang terkait dengan domain yang dipantau dan feed yang diikuti.</p>
+{% else %}
+<h1>4. Indicators of Compromise (IoC)</h1>
+<p>The following indicators of compromise were extracted from threat pulses associated with monitored domains and subscribed feeds.</p>
+{% endif %}
+
+{% if iocs %}
+  {% for ioc_type, indicators in iocs.items %}
+  <h3>{{ioc_type|upper}} ({{indicators|length}})</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:45%">Indicator</th>
+        <th>Source Pulse</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ind in indicators|slice:":20" %}
+      <tr>
+        <td><code>{{ind.value|truncatechars:60}}</code></td>
+        <td>{{ind.pulse|truncatechars:50}}</td>
+      </tr>
+      {% endfor %}
+      {% if indicators|length > 20 %}
+      <tr><td colspan="2" class="text-muted"><em>{% if lang == 'id' %}... dan {{indicators|length|add:"-20"}} lainnya{% else %}... and {{indicators|length|add:"-20"}} more{% endif %}</em></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  {% endfor %}
+{% else %}
+<p class="text-muted">{% if lang == 'id' %}Tidak ada indikator IoC yang diekstrak dari pulse ancaman yang tersedia.{% else %}No IoC indicators were extracted from available threat pulses.{% endif %}</p>
+{% endif %}
+
+{% if manual_indicators %}
+<h2>{% if lang == 'id' %}Indikator Manual{% else %}Manually Tracked Indicators{% endif %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Value</th>
+      <th>Pulses Found</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for mi in manual_indicators %}
+    <tr>
+      <td><span class="badge badge-info">{{mi.indicator_type}}</span></td>
+      <td><code>{{mi.value}}</code></td>
+      <td>{% if mi.pulse_count > 0 %}<span class="text-danger">{{mi.pulse_count}}</span>{% else %}0{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 5. VULNERABILITY HIGHLIGHTS                 -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>5. Sorotan Kerentanan (CVE)</h1>
+<p>Identifikasi CVE berikut dirujuk dalam pulse intelijen ancaman yang terkait dengan aset yang dipantau.</p>
+{% else %}
+<h1>5. Vulnerability Highlights (CVE)</h1>
+<p>The following CVE identifiers were referenced in threat intelligence pulses related to monitored assets.</p>
+{% endif %}
+
+{% if cves %}
+<table>
+  <thead>
+    <tr>
+      <th style="width:30%">CVE ID</th>
+      <th>Referenced In Pulse</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cve in cves %}
+    <tr>
+      <td><code>{{cve.id}}</code></td>
+      <td>{{cve.pulse|truncatechars:70}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">{% if lang == 'id' %}Tidak ditemukan referensi CVE dalam data intelijen ancaman saat ini.{% else %}No CVE references were found in the current threat intelligence data.{% endif %}</p>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 6. DATA BREACH & EXPOSURE MONITORING        -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>6. Pemantauan Kebocoran Data</h1>
+<p>Analisis paparan kredensial dilakukan menggunakan database LeakCheck untuk mengidentifikasi kredensial bocor yang terkait dengan domain yang dipantau.</p>
+{% else %}
+<h1>6. Data Breach & Exposure Monitoring</h1>
+<p>Credential exposure analysis was performed using the LeakCheck database to identify leaked credentials associated with monitored domains.</p>
+{% endif %}
+
+{% if leak_data_list %}
+<h2>{% if lang == 'id' %}Ringkasan Kebocoran Per Domain{% else %}Domain Breach Summary{% endif %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Domain</th>
+      <th>Leaked Records</th>
+      <th>Last Checked</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ld in leak_data_list %}
+    <tr>
+      <td><strong>{{ld.domain.name}}</strong></td>
+      <td>{% if ld.total_found > 0 %}<span class="text-danger"><strong>{{ld.total_found}}</strong></span>{% else %}0{% endif %}</td>
+      <td>{{ld.fetched_at|date:"Y-m-d H:i"}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if all_leaked_creds %}
+<h2>Leaked Credential Details</h2>
+<p class="text-muted" style="font-size:8pt;">{% if lang == 'id' %}Kredensial yang telah ditandai "reviewed" oleh analis telah dikecualikan dari laporan ini.{% else %}Credentials marked as "reviewed" by the analyst have been excluded from this report.{% endif %}</p>
+<table style="width:100%;">
+  <thead>
+    <tr>
+      <th style="width:30%">Identity</th>
+      <th style="width:25%">Source</th>
+      <th style="width:45%">Origin URL</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in all_leaked_creds %}
+    <tr>
+      <td>{% if c.email %}{{c.email|truncatechars:40}}{% elif c.username %}{{c.username|truncatechars:30}}{% else %}-{% endif %}</td>
+      <td>{{c.source_name|default:"-"|truncatechars:25}}</td>
+      <td style="font-size:7pt;">{% if c.origin %}{{c.origin|truncatechars:60}}{% else %}{{c.domain|truncatechars:30}}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">{% if lang == 'id' %}Tidak ditemukan kredensial bocor untuk domain yang dipantau (atau semua telah ditinjau dan dikecualikan).{% else %}No leaked credentials were found for the monitored domains (or all have been reviewed and excluded).{% endif %}</p>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 7. SEVERITY & TRIAGE SUMMARY                -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>7. Ringkasan Tingkat Keparahan</h1>
+<p>Penilaian keparahan berikut berdasarkan analisis otomatis temuan intelijen ancaman.</p>
+{% else %}
+<h1>7. Severity & Triage Summary</h1>
+<p>The following severity assessment is based on automated analysis of threat intelligence findings.</p>
+{% endif %}
+
+{% if severity_scores %}
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Finding</th>
+      <th>Severity</th>
+      <th>Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in severity_scores %}
+    <tr>
+      <td><strong>{{s.category}}</strong></td>
+      <td>{{s.finding}}</td>
+      <td>
+        <span class="badge {% if s.severity == 'CRITICAL' %}badge-critical{% elif s.severity == 'HIGH' %}badge-high{% elif s.severity == 'MEDIUM' %}badge-medium{% else %}badge-low{% endif %}">
+          {{s.severity}}
+        </span>
+      </td>
+      <td>{{s.score}} / 10</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Overall Risk Score</h3>
+<div class="risk-meter">
+  <div class="risk-meter-fill" style="width: {{overall_risk}}%; background: {% if overall_risk >= 70 %}#d32f2f{% elif overall_risk >= 40 %}#f57c00{% else %}#388e3c{% endif %};"></div>
+</div>
+<p style="text-align: center; font-size: 16pt; font-weight: 600; color: {% if overall_risk >= 70 %}#d32f2f{% elif overall_risk >= 40 %}#f57c00{% else %}#388e3c{% endif %};">
+  {{overall_risk}} / 100
+</p>
+{% else %}
+<p class="text-muted">{% if lang == 'id' %}Tidak ada temuan keparahan signifikan yang perlu dilaporkan saat ini.{% else %}No significant severity findings to report at this time.{% endif %}</p>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 8. RECOMMENDED ACTIONS & IMPACT             -->
+<!-- ════════════════════════════════════════════ -->
+<div class="page-break"></div>
+{% if lang == 'id' %}
+<h1>8. Rekomendasi Tindakan & Dampak</h1>
+
+<h2>Tindakan Segera</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Prioritas</th>
+      <th>Tindakan</th>
+      <th>Dampak</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if total_leaks > 0 %}
+    <tr>
+      <td><span class="badge badge-critical">CRITICAL</span></td>
+      <td>Paksa reset kata sandi untuk semua {{total_leaks}} kredensial yang terkompromi yang diidentifikasi di Bagian 6. Terapkan multi-factor authentication (MFA) untuk semua akun yang terdampak.</td>
+      <td>Mencegah akses tidak sah menggunakan kredensial yang bocor</td>
+    </tr>
+    {% endif %}
+    {% if total_malware > 0 %}
+    <tr>
+      <td><span class="badge badge-critical">CRITICAL</span></td>
+      <td>Investigasi {{total_malware}} malware sample yang terkait dengan domain yang dipantau. Lakukan penilaian keamanan endpoint dan malware scanning.</td>
+      <td>Mengidentifikasi dan meremediasi infeksi malware aktif</td>
+    </tr>
+    {% endif %}
+    {% if banking_pulses %}
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Tinjau {{banking_pulses|length}} threat pulse sektor keuangan. Perbarui signature intrusion detection/prevention dengan IoC dari Bagian 4.</td>
+      <td>Memperkuat pertahanan terhadap ancaman sektor keuangan aktif</td>
+    </tr>
+    {% endif %}
+    {% if cves %}
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Nilai paparan terhadap {{cves|length}} CVE yang tercantum di Bagian 5. Prioritaskan patching untuk vulnerability yang berlaku.</td>
+      <td>Mengurangi attack surface dari vulnerability yang diketahui</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<h2>Rekomendasi Berkelanjutan</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Prioritas</th>
+      <th>Tindakan</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Terapkan threat intelligence monitoring berkelanjutan dengan peringatan otomatis untuk pulse baru yang cocok dengan kata kunci perbankan/keuangan.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Buat program credential exposure monitoring dengan pemindaian LeakCheck berkala dan notifikasi otomatis untuk breach baru.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-medium">MEDIUM</span></td>
+      <td>Lakukan security awareness training rutin yang berfokus pada phishing dan credential theft untuk karyawan sektor perbankan.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-medium">MEDIUM</span></td>
+      <td>Tinjau dan perbarui prosedur incident response berdasarkan threat landscape yang diidentifikasi dalam laporan ini.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-low">LOW</span></td>
+      <td>Jadwalkan threat intelligence review berikutnya dalam 30 hari untuk melacak evolusi ancaman dan memverifikasi efektivitas remediasi.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p style="margin-top: 10mm; text-align: center; color: #888; font-size: 8pt;">
+  ─── Akhir Laporan ───<br/>
+  Dibuat pada {{report_date}} pukul {{report_time}}<br/>
+  {% if company_name %}Disusun oleh {{company_name}}{% endif %}
+</p>
+
+{% else %}
+<h1>8. Recommended Actions & Impact</h1>
+
+<h2>Immediate Actions</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Priority</th>
+      <th>Action</th>
+      <th>Impact</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if total_leaks > 0 %}
+    <tr>
+      <td><span class="badge badge-critical">CRITICAL</span></td>
+      <td>Force password reset for all {{total_leaks}} compromised credential(s) identified in Section 6. Implement multi-factor authentication (MFA) for all affected accounts.</td>
+      <td>Prevents unauthorized access using leaked credentials</td>
+    </tr>
+    {% endif %}
+    {% if total_malware > 0 %}
+    <tr>
+      <td><span class="badge badge-critical">CRITICAL</span></td>
+      <td>Investigate {{total_malware}} malware sample(s) associated with monitored domains. Conduct endpoint security assessment and malware scanning.</td>
+      <td>Identifies and remediates active malware infections</td>
+    </tr>
+    {% endif %}
+    {% if banking_pulses %}
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Review {{banking_pulses|length}} financial sector threat pulse(s). Update intrusion detection/prevention signatures with IoCs from Section 4.</td>
+      <td>Strengthens defenses against active financial sector threats</td>
+    </tr>
+    {% endif %}
+    {% if cves %}
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Assess exposure to {{cves|length}} CVE(s) listed in Section 5. Prioritize patching for any applicable vulnerabilities.</td>
+      <td>Reduces attack surface from known vulnerabilities</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<h2>Ongoing Recommendations</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Priority</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Implement continuous threat intelligence monitoring with automated alerting for new pulses matching banking/financial keywords.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-high">HIGH</span></td>
+      <td>Establish a credential exposure monitoring program with regular LeakCheck scans and automated notification for new breaches.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-medium">MEDIUM</span></td>
+      <td>Conduct regular security awareness training focused on phishing and credential theft for banking sector employees.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-medium">MEDIUM</span></td>
+      <td>Review and update incident response procedures based on the threat landscape identified in this report.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-low">LOW</span></td>
+      <td>Schedule next threat intelligence review within 30 days to track threat evolution and verify remediation effectiveness.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p style="margin-top: 10mm; text-align: center; color: #888; font-size: 8pt;">
+  ─── End of Report ───<br/>
+  Generated on {{report_date}} at {{report_time}}<br/>
+  {% if company_name %}Prepared by {{company_name}}{% endif %}
+</p>
+{% endif %}
+
+</body>
+</html>

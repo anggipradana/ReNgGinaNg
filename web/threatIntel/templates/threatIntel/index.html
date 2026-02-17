@@ -1,0 +1,1029 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}
+Threat Intelligence
+{% endblock title %}
+
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="#">Threat Intelligence</a></li>
+{% endblock breadcrumb_title %}
+
+{% block page_title %}
+Threat Intelligence
+{% endblock page_title %}
+
+{% block main_content %}
+
+{% if not has_api_keys %}
+<div class="row">
+  <div class="col-12">
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+      <i class="fe-alert-triangle me-1"></i>
+      <strong>No API keys configured.</strong> Please add your OTX AlienVault and/or LeakCheck API keys in
+      <a href="{% url 'api_vault' project.slug %}" class="alert-link">Settings &rarr; API Vault</a> to use Threat Intelligence features.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Refresh Controls & Report -->
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap">
+          <div>
+            {% if scan_status and scan_status.last_scan_at %}
+              <span class="text-muted">Last scanned: <span id="last-scan-time">{{scan_status.last_scan_at}}</span></span>
+            {% else %}
+              <span class="text-muted">No domain scans performed yet.</span>
+            {% endif %}
+          </div>
+          <div>
+            <a href="{% url 'threat_intel_generate_report' project.slug %}" target="_blank" class="btn btn-dark me-2">
+              <i class="fe-file-text me-1"></i> Generate PDF Report
+            </a>
+            <a href="{% url 'threat_intel_generate_report' project.slug %}?download=1" class="btn btn-outline-dark me-2">
+              <i class="fe-download me-1"></i> Download PDF
+            </a>
+            <button class="btn btn-primary" id="btn-refresh-all" onclick="refreshAllDomains()" {% if not has_api_keys %}disabled{% endif %}>
+              <i class="fe-refresh-cw me-1"></i> Refresh All Domains
+            </button>
+          </div>
+        </div>
+        <!-- Progress bar (hidden by default) -->
+        <div id="scan-progress-container" class="mt-3" style="display: none;">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="text-muted" id="scan-progress-text">Scanning...</span>
+            <span class="text-muted" id="scan-progress-count">0 / 0</span>
+          </div>
+          <div class="progress" style="height: 20px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="scan-progress-bar"
+              role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+              0%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row">
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Risk Score</h4>
+        <h2 class="my-3 {% if risk_score > 70 %}text-danger{% elif risk_score > 30 %}text-warning{% else %}text-success{% endif %}">
+          {{risk_score}}
+        </h2>
+        <p class="text-muted mb-0">/ 100</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Total Pulses</h4>
+        <h2 class="text-primary my-3">{{total_pulses}}</h2>
+        <p class="text-muted mb-0">OTX threat pulses</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Malware Samples</h4>
+        <h2 class="text-danger my-3">{{total_malware}}</h2>
+        <p class="text-muted mb-0">Associated malware</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Total Leaks</h4>
+        <h2 class="text-warning my-3">{{total_leaks}}</h2>
+        <p class="text-muted mb-0">Credential leaks</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Domains w/ Threats</h4>
+        <h2 class="text-info my-3">{{domains_with_threats}}</h2>
+        <p class="text-muted mb-0">Have OTX pulses</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="mt-0 font-16">Domains w/ Leaks</h4>
+        <h2 class="text-danger my-3">{{domains_with_leaks}}</h2>
+        <p class="text-muted mb-0">Have leaked creds</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+{% if ioc_type_counts or leak_per_domain or cves %}
+<div class="row">
+  {% if ioc_type_counts %}
+  <div class="col-xl-4 col-lg-6 col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-crosshair me-1 text-warning"></i> IoC Type Distribution</h4>
+        <div id="ioc_type_chart" class="apex-charts" style="min-height: 280px;"></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if leak_per_domain %}
+  <div class="col-xl-4 col-lg-6 col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-unlock me-1 text-danger"></i> Leaked Credentials by Domain</h4>
+        <div id="leak_domain_chart" class="apex-charts" style="min-height: 280px;"></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if cves %}
+  <div class="col-xl-4 col-lg-6 col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-alert-octagon me-1 text-danger"></i> CVE Summary</h4>
+        <div class="text-center mb-3">
+          <h2 class="text-danger">{{cves|length}}</h2>
+          <p class="text-muted mb-0">CVE references found in threat pulses</p>
+        </div>
+        <div data-simplebar style="max-height: 200px;">
+          {% for cve in cves|slice:":15" %}
+          <div class="d-flex align-items-center justify-content-between py-1 border-bottom">
+            <a href="https://nvd.nist.gov/vuln/detail/{{cve.id}}" target="_blank" class="text-danger fw-bold"><code>{{cve.id}}</code></a>
+            <small class="text-muted text-truncate ms-2" style="max-width: 180px;">{{cve.pulse|truncatechars:35}}</small>
+          </div>
+          {% endfor %}
+          {% if cves|length > 15 %}
+          <p class="text-muted text-center mt-2"><small>... and {{cves|length|add:"-15"}} more</small></p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- LeakCheck Leaked Credentials Table -->
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-unlock me-1 text-danger"></i> Leaked Credentials (LeakCheck)</h4>
+        <div class="table-responsive">
+          <table id="leak-table" class="table table-striped dt-responsive nowrap w-100">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Leaked Records</th>
+                <th>Last Checked</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in leak_table %}
+              <tr>
+                <td><strong>{{d.name}}</strong></td>
+                <td>
+                  {% if d.total_found != '-' %}
+                    <span class="badge {% if d.total_found > 0 %}bg-danger{% else %}bg-success{% endif %}">{{d.total_found}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.last_checked %}
+                    <small class="text-muted">{{d.last_checked|timesince}} ago</small>
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.fetch_error %}
+                    <span class="badge bg-warning text-dark" title="{{d.fetch_error}}">Error</span>
+                  {% elif d.has_data %}
+                    <span class="badge bg-success">OK</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="btn btn-soft-primary btn-sm" onclick="viewDomainDetail({{d.id}}, '{{d.name}}', 'leak')" {% if not d.has_data %}disabled{% endif %} title="View Leaked Credentials">
+                    <i class="fe-eye"></i>
+                  </button>
+                  <button class="btn btn-soft-info btn-sm" onclick="refreshSingleDomain({{d.id}})" {% if not has_api_keys %}disabled{% endif %} title="Refresh">
+                    <i class="fe-refresh-cw"></i>
+                  </button>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted">No domains found in this project.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Latest OTX Threat Pulses Feed -->
+{% if latest_pulses %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-radio me-1 text-danger"></i> Latest Threat Pulses (OTX Feed)</h4>
+        <div class="table-responsive">
+          <table id="pulse-table" class="table table-sm table-striped dt-responsive nowrap w-100">
+            <thead>
+              <tr>
+                <th>Pulse Name</th>
+                <th>Created</th>
+                <th>Adversary</th>
+                <th>Malware Families</th>
+                <th>MITRE ATT&CK</th>
+                <th>Tags</th>
+                <th>Indicators</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pulse in latest_pulses %}
+              <tr>
+                <td>
+                  <a href="https://otx.alienvault.com/pulse/{{pulse.id}}" target="_blank" class="text-primary">
+                    {{pulse.name|truncatechars:60}}
+                  </a>
+                </td>
+                <td><small class="text-muted">{{pulse.created|truncatechars:10}}</small></td>
+                <td>
+                  {% if pulse.adversary %}
+                    <span class="badge bg-danger">{{pulse.adversary}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% for mf in pulse.malware_families %}
+                    <span class="badge bg-warning text-dark me-1">{{mf}}</span>
+                  {% empty %}
+                    <span class="text-muted">-</span>
+                  {% endfor %}
+                </td>
+                <td>
+                  {% for att in pulse.attack_ids %}
+                    <span class="badge bg-info me-1">{{att|truncatechars:30}}</span>
+                  {% empty %}
+                    <span class="text-muted">-</span>
+                  {% endfor %}
+                </td>
+                <td>
+                  {% for tag in pulse.tags|slice:":5" %}
+                    <span class="badge bg-secondary me-1">{{tag}}</span>
+                  {% endfor %}
+                </td>
+                <td><span class="badge bg-light text-dark">{{pulse.indicator_count}}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Manual Indicators -->
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h4 class="header-title mb-0"><i class="fe-target me-1 text-info"></i> Manual Indicators (OTX Pulse Check)</h4>
+          <button class="btn btn-sm btn-soft-primary" onclick="showAddIndicatorModal()" {% if not has_otx_key %}disabled title="Add OTX API key first"{% endif %}>
+            <i class="fe-plus me-1"></i> Add Indicator
+          </button>
+        </div>
+        <p class="text-muted">Add custom domains, subdomains, or IP addresses to check against OTX threat pulses.</p>
+        <div class="table-responsive">
+          <table id="indicator-table" class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Value</th>
+                <th>Pulses</th>
+                <th>Last Checked</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ind in manual_indicators %}
+              <tr id="indicator-row-{{ind.id}}">
+                <td><span class="badge {% if ind.indicator_type == 'ip' %}bg-warning text-dark{% elif ind.indicator_type == 'subdomain' %}bg-info{% else %}bg-primary{% endif %}">{{ind.indicator_type}}</span></td>
+                <td><strong>{{ind.value}}</strong></td>
+                <td>
+                  {% if ind.pulse_count > 0 %}
+                    <span class="badge bg-danger">{{ind.pulse_count}}</span>
+                  {% else %}
+                    <span class="badge bg-success">0</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if ind.fetched_at %}
+                    <small class="text-muted">{{ind.fetched_at|timesince}} ago</small>
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="btn btn-soft-primary btn-sm" onclick="viewIndicatorDetail({{ind.id}}, '{{ind.value}}')" {% if not ind.fetched_at %}disabled{% endif %} title="View Details">
+                    <i class="fe-eye"></i>
+                  </button>
+                  <button class="btn btn-soft-info btn-sm" onclick="refreshIndicator({{ind.id}})" title="Refresh">
+                    <i class="fe-refresh-cw"></i>
+                  </button>
+                  <button class="btn btn-soft-danger btn-sm" onclick="deleteIndicator({{ind.id}})" title="Delete">
+                    <i class="fe-trash-2"></i>
+                  </button>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted">No manual indicators added yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IoC Detail Table -->
+{% if ioc_flat %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-crosshair me-1 text-warning"></i> Indicators of Compromise (IoC)</h4>
+        <div class="table-responsive">
+          <table id="ioc-table" class="table table-sm table-striped dt-responsive nowrap w-100">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Indicator</th>
+                <th>Source Pulse</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ioc in ioc_flat %}
+              <tr>
+                <td>
+                  <span class="badge {% if ioc.type == 'IPv4' or ioc.type == 'IPv6' %}bg-warning text-dark{% elif ioc.type == 'domain' %}bg-primary{% elif ioc.type == 'hostname' %}bg-info{% elif ioc.type == 'URL' %}bg-secondary{% elif ioc.type == 'FileHash-MD5' or ioc.type == 'FileHash-SHA256' or ioc.type == 'FileHash-SHA1' %}bg-danger{% else %}bg-dark{% endif %}">
+                    {{ioc.type}}
+                  </span>
+                </td>
+                <td><code>{{ioc.value|truncatechars:80}}</code></td>
+                <td><small class="text-muted">{{ioc.pulse|truncatechars:60}}</small></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- CVE Detail Table -->
+{% if cves %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-alert-octagon me-1 text-danger"></i> CVE Vulnerability References</h4>
+        <div class="table-responsive">
+          <table id="cve-table" class="table table-sm table-striped dt-responsive nowrap w-100">
+            <thead>
+              <tr>
+                <th>CVE ID</th>
+                <th>Referenced In Pulse</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cve in cves %}
+              <tr>
+                <td><code class="text-danger fw-bold">{{cve.id}}</code></td>
+                <td>{{cve.pulse|truncatechars:80}}</td>
+                <td><a href="https://nvd.nist.gov/vuln/detail/{{cve.id}}" target="_blank" class="btn btn-sm btn-soft-danger"><i class="fe-external-link"></i></a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- OTX Domain Threat Scan Table -->
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title mb-3"><i class="fe-shield me-1 text-primary"></i> Domain Threat Scan (OTX AlienVault)</h4>
+        <div class="table-responsive">
+          <table id="threat-scan-table" class="table table-striped dt-responsive nowrap w-100">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Pulses</th>
+                <th>Malware</th>
+                <th>Passive DNS</th>
+                <th>URLs</th>
+                <th>Last Checked</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in threat_table %}
+              <tr>
+                <td><strong>{{d.name}}</strong></td>
+                <td>
+                  {% if d.pulse_count != '-' %}
+                    <span class="badge {% if d.pulse_count > 0 %}bg-warning{% else %}bg-success{% endif %}">{{d.pulse_count}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.malware_count != '-' %}
+                    <span class="badge {% if d.malware_count > 0 %}bg-danger{% else %}bg-success{% endif %}">{{d.malware_count}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.passive_dns_count != '-' %}
+                    <span class="badge bg-info">{{d.passive_dns_count}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.url_count != '-' %}
+                    <span class="badge bg-secondary">{{d.url_count}}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.last_checked %}
+                    <small class="text-muted">{{d.last_checked|timesince}} ago</small>
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="btn btn-soft-primary btn-sm" onclick="viewDomainDetail({{d.id}}, '{{d.name}}', 'otx')" {% if not d.has_data %}disabled{% endif %} title="View OTX Details">
+                    <i class="fe-eye"></i>
+                  </button>
+                  <button class="btn btn-soft-info btn-sm" onclick="refreshSingleDomain({{d.id}})" {% if not has_api_keys %}disabled{% endif %} title="Refresh">
+                    <i class="fe-refresh-cw"></i>
+                  </button>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="text-center text-muted">No domains found in this project.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock main_content %}
+
+
+{% block page_level_script %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/apexcharts/3.29.0/apexcharts.min.js" integrity="sha512-fe6OklXva8AWoqdwgkE7Ni4uWgHGWxFQWZx4lYehzY2Qrst5YfogjAbnLd6egsoTrnjGI9/LYt1Ont2cKNbP2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('#threat-scan-table').DataTable({
+      order: [[1, 'desc']],
+      pageLength: 25,
+      language: { emptyTable: "No domains found." }
+    });
+    $('#leak-table').DataTable({
+      order: [[1, 'desc']],
+      pageLength: 5,
+      language: { emptyTable: "No domains found." }
+    });
+    {% if ioc_flat %}
+    $('#ioc-table').DataTable({
+      order: [[0, 'asc']],
+      pageLength: 5,
+      language: { emptyTable: "No IoCs found." }
+    });
+    {% endif %}
+    {% if cves %}
+    $('#cve-table').DataTable({
+      order: [[0, 'asc']],
+      pageLength: 5,
+      language: { emptyTable: "No CVEs found." }
+    });
+    {% endif %}
+    {% if latest_pulses %}
+    $('#pulse-table').DataTable({
+      order: [[1, 'desc']],
+      pageLength: 5,
+      language: { emptyTable: "No pulses found." }
+    });
+    {% endif %}
+
+    // IoC Type Distribution Pie Chart
+    {% if ioc_type_counts %}
+    var iocTypeChart = new ApexCharts(document.querySelector("#ioc_type_chart"), {
+      chart: { type: 'donut', height: 280 },
+      series: [{% for t, c in ioc_type_counts.items %}{{c}}{% if not forloop.last %},{% endif %}{% endfor %}],
+      labels: [{% for t, c in ioc_type_counts.items %}'{{t}}'{% if not forloop.last %},{% endif %}{% endfor %}],
+      colors: ['#F44336', '#FF9800', '#2196F3', '#4CAF50', '#9C27B0', '#00BCD4', '#795548', '#607D8B', '#E91E63', '#3F51B5'],
+      legend: { position: 'bottom', fontSize: '12px' },
+      dataLabels: { enabled: true, style: { fontSize: '11px' } },
+      plotOptions: { pie: { donut: { size: '55%' } } },
+    });
+    iocTypeChart.render();
+    {% endif %}
+
+    // Leaked Credentials by Domain Bar Chart
+    {% if leak_per_domain %}
+    var leakDomainChart = new ApexCharts(document.querySelector("#leak_domain_chart"), {
+      chart: { type: 'bar', height: 280 },
+      series: [{ name: 'Leaked Credentials', data: [{% for ld in leak_per_domain %}{{ld.count}}{% if not forloop.last %},{% endif %}{% endfor %}] }],
+      xaxis: { categories: [{% for ld in leak_per_domain %}'{{ld.domain}}'{% if not forloop.last %},{% endif %}{% endfor %}] },
+      colors: ['#e7515a'],
+      plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+      dataLabels: { enabled: false },
+    });
+    leakDomainChart.render();
+    {% endif %}
+  });
+
+  // ──── Refresh All ────
+  function refreshAllDomains() {
+    var btn = document.getElementById('btn-refresh-all');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fe-loader me-1 spinner-border spinner-border-sm"></i> Scanning...';
+
+    var progressContainer = document.getElementById('scan-progress-container');
+    progressContainer.style.display = 'block';
+
+    var pollInterval = setInterval(function() {
+      fetch("{% url 'threat_intel_scan_status' project.slug %}")
+      .then(response => response.json())
+      .then(data => {
+        var pct = data.domains_total > 0 ? Math.round((data.domains_scanned / data.domains_total) * 100) : 0;
+        var bar = document.getElementById('scan-progress-bar');
+        bar.style.width = pct + '%';
+        bar.setAttribute('aria-valuenow', pct);
+        bar.textContent = pct + '%';
+        document.getElementById('scan-progress-count').textContent = data.domains_scanned + ' / ' + data.domains_total;
+        if (!data.is_scanning && data.domains_scanned > 0) {
+          clearInterval(pollInterval);
+        }
+      });
+    }, 2000);
+
+    fetch("{% url 'threat_intel_refresh_all' project.slug %}", {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      clearInterval(pollInterval);
+      if (data.status) {
+        Snackbar.show({
+          text: 'Threat intel scan completed for ' + data.domains_scanned + ' domain(s).',
+          pos: 'top-right', actionTextColor: '#42A5F5', duration: 3000
+        });
+      } else {
+        Snackbar.show({
+          text: data.error || 'Scan failed.',
+          pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 3000
+        });
+      }
+      setTimeout(function() { window.location.reload(); }, 1500);
+    })
+    .catch(function(error) {
+      clearInterval(pollInterval);
+      console.error('Error:', error);
+      Snackbar.show({
+        text: 'An error occurred during the scan.',
+        pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 3000
+      });
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fe-refresh-cw me-1"></i> Refresh All Domains';
+      progressContainer.style.display = 'none';
+    });
+  }
+
+  // ──── Refresh Single Domain ────
+  function refreshSingleDomain(domainId) {
+    Swal.fire({
+      title: 'Refresh Threat Intel?',
+      text: 'Fetch latest OTX and LeakCheck data for this domain.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, refresh',
+      cancelButtonText: 'Cancel',
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Fetching data...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+        var url = "{% url 'threat_intel_refresh_domain' project.slug 0 %}".replace('/0', '/' + domainId);
+        fetch(url, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+        })
+        .then(response => response.json())
+        .then(function(data) {
+          Swal.close();
+          if (data.status) {
+            Snackbar.show({ text: 'Domain data refreshed.', pos: 'top-right', actionTextColor: '#42A5F5', duration: 2000 });
+          } else {
+            Snackbar.show({ text: 'Errors: ' + (data.errors || []).join(', '), pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 3000 });
+          }
+          setTimeout(function() { window.location.reload(); }, 1500);
+        })
+        .catch(function(error) { Swal.close(); console.error('Error:', error); });
+      }
+    });
+  }
+
+  // ──── Domain Detail Modal ────
+  function viewDomainDetail(domainId, domainName, tab) {
+    var url = "{% url 'threat_intel_domain_detail' project.slug 0 %}".replace('/0', '/' + domainId);
+    fetch(url)
+    .then(response => response.json())
+    .then(function(data) {
+      var modalTitle = document.getElementById('xl-modal_title');
+      var modalContent = document.getElementById('xl-modal-content');
+      modalTitle.textContent = 'Threat Intelligence: ' + domainName;
+
+      var html = '<ul class="nav nav-tabs" role="tablist">';
+      html += '<li class="nav-item"><a class="nav-link ' + (tab === 'otx' ? 'active' : '') + '" data-bs-toggle="tab" href="#otx-tab">OTX AlienVault</a></li>';
+      html += '<li class="nav-item"><a class="nav-link ' + (tab === 'leak' ? 'active' : '') + '" data-bs-toggle="tab" href="#leak-tab">Leaked Credentials</a></li>';
+      html += '</ul>';
+      html += '<div class="tab-content mt-3">';
+
+      // OTX Tab
+      html += '<div class="tab-pane fade ' + (tab === 'otx' ? 'show active' : '') + '" id="otx-tab">';
+      if (data.otx) {
+        html += '<div class="row mb-3">';
+        html += '<div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h5>Pulses</h5><h3 class="text-primary">' + data.otx.pulse_count + '</h3></div></div></div>';
+        html += '<div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h5>Reputation</h5><h3>' + data.otx.reputation + '</h3></div></div></div>';
+        html += '<div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h5>Malware</h5><h3 class="text-danger">' + data.otx.malware_count + '</h3></div></div></div>';
+        html += '<div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h5>Passive DNS</h5><h3 class="text-info">' + data.otx.passive_dns_count + '</h3></div></div></div>';
+        html += '</div>';
+
+        if (data.otx.fetch_error) {
+          html += '<div class="alert alert-danger">Error: ' + DOMPurify.sanitize(data.otx.fetch_error) + '</div>';
+        }
+
+        // Pulses table
+        if (data.otx.pulses && data.otx.pulses.length > 0) {
+          html += '<h5 class="mt-3">Threat Pulses</h5>';
+          html += '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Name</th><th>Created</th><th>Adversary</th><th>Tags</th></tr></thead><tbody>';
+          data.otx.pulses.forEach(function(p) {
+            html += '<tr><td>' + DOMPurify.sanitize(p.name) + '</td>';
+            html += '<td>' + DOMPurify.sanitize(p.created || '') + '</td>';
+            html += '<td>' + DOMPurify.sanitize(p.adversary || '-') + '</td>';
+            html += '<td>' + (p.tags || []).map(function(t) { return '<span class="badge bg-secondary me-1">' + DOMPurify.sanitize(t) + '</span>'; }).join('') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        // Malware table
+        if (data.otx.malware_samples && data.otx.malware_samples.length > 0) {
+          html += '<h5 class="mt-3">Malware Samples</h5>';
+          html += '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Hash</th><th>Date</th></tr></thead><tbody>';
+          data.otx.malware_samples.forEach(function(m) {
+            html += '<tr><td><code>' + DOMPurify.sanitize(m.hash) + '</code></td>';
+            html += '<td>' + DOMPurify.sanitize(String(m.date || '')) + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        // Passive DNS table
+        if (data.otx.passive_dns && data.otx.passive_dns.length > 0) {
+          html += '<h5 class="mt-3">Passive DNS Records</h5>';
+          html += '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Hostname</th><th>Address</th><th>Type</th><th>First Seen</th><th>Last Seen</th></tr></thead><tbody>';
+          data.otx.passive_dns.forEach(function(d) {
+            html += '<tr><td>' + DOMPurify.sanitize(d.hostname) + '</td>';
+            html += '<td>' + DOMPurify.sanitize(d.address) + '</td>';
+            html += '<td>' + DOMPurify.sanitize(d.record_type) + '</td>';
+            html += '<td>' + DOMPurify.sanitize(d.first || '') + '</td>';
+            html += '<td>' + DOMPurify.sanitize(d.last || '') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        html += '<p class="text-muted mt-2"><small>Fetched at: ' + DOMPurify.sanitize(data.otx.fetched_at) + '</small></p>';
+      } else {
+        html += '<p class="text-muted">No OTX data available. Click refresh to fetch.</p>';
+      }
+      html += '</div>';
+
+      // LeakCheck Tab
+      html += '<div class="tab-pane fade ' + (tab === 'leak' ? 'show active' : '') + '" id="leak-tab">';
+      if (data.leakcheck) {
+        html += '<div class="row mb-3">';
+        html += '<div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h5>Total Leaks Found</h5><h3 class="text-danger">' + data.leakcheck.total_found + '</h3></div></div></div>';
+        html += '</div>';
+
+        if (data.leakcheck.fetch_error) {
+          html += '<div class="alert alert-danger">Error: ' + DOMPurify.sanitize(data.leakcheck.fetch_error) + '</div>';
+        }
+
+        // Source Summary section
+        if (data.leakcheck.source_summary && data.leakcheck.source_summary.length > 0) {
+          html += '<h5 class="mt-3"><i class="fe-database me-1"></i> Breach & Stealer Sources</h5>';
+          html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead class="table-light"><tr>';
+          html += '<th>Source</th><th>Type</th><th>Records</th><th>Sample Identities</th>';
+          html += '</tr></thead><tbody>';
+          data.leakcheck.source_summary.forEach(function(s) {
+            var typeBadge = s.search_type === 'origin'
+              ? '<span class="badge bg-warning text-dark">Stealer</span>'
+              : '<span class="badge bg-info">Breach</span>';
+            html += '<tr>';
+            html += '<td><strong>' + DOMPurify.sanitize(s.source_name) + '</strong></td>';
+            html += '<td>' + typeBadge + '</td>';
+            html += '<td><span class="badge bg-danger">' + s.count + '</span></td>';
+            html += '<td>';
+            if (s.sample_emails && s.sample_emails.length > 0) {
+              s.sample_emails.forEach(function(e) {
+                html += '<span class="badge bg-light text-dark me-1">' + DOMPurify.sanitize(e) + '</span>';
+              });
+              if (s.count > 3) {
+                html += '<span class="text-muted ms-1">... and ' + (s.count - 3) + ' more</span>';
+              }
+            } else {
+              html += '<span class="text-muted">-</span>';
+            }
+            html += '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        if (data.leakcheck.leaked_credentials && data.leakcheck.leaked_credentials.length > 0) {
+          var leakId = data.leakcheck.id;
+          html += '<h5 class="mt-3"><i class="fe-unlock me-1"></i> Credential Details</h5>';
+          html += '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>';
+          html += '<th style="width:30px"></th><th>Email</th><th>Username</th><th>Password</th><th>Origin</th><th>Source</th>';
+          html += '</tr></thead><tbody>';
+          data.leakcheck.leaked_credentials.forEach(function(c) {
+            var checkedClass = c.checked ? 'btn-success' : 'btn-outline-secondary';
+            var checkedIcon = c.checked ? 'fe-check-circle' : 'fe-circle';
+            var rowClass = c.checked ? 'style="opacity: 0.5;"' : '';
+            html += '<tr ' + rowClass + '>';
+            html += '<td><button class="btn btn-sm ' + checkedClass + '" onclick="toggleChecked(this, ' + leakId + ', \'' + c.hash + '\', ' + !c.checked + ')" title="Mark as reviewed"><i class="' + checkedIcon + '"></i></button></td>';
+            html += '<td>' + DOMPurify.sanitize(c.email || '-') + '</td>';
+            html += '<td>' + DOMPurify.sanitize(c.username || '-') + '</td>';
+            html += '<td>' + (c.password ? '<code>' + DOMPurify.sanitize(c.password) + '</code>' : '-') + '</td>';
+            html += '<td>' + (c.origin ? '<a href="' + DOMPurify.sanitize(c.origin) + '" target="_blank" class="text-primary" style="word-break:break-all;font-size:12px;">' + DOMPurify.sanitize(c.origin) + '</a>' : '-') + '</td>';
+            html += '<td><span class="badge ' + (c.search_type === 'origin' ? 'bg-warning text-dark' : 'bg-info') + '">' + DOMPurify.sanitize(c.source_name || '-') + '</span></td></tr>';
+          });
+          html += '</tbody></table></div>';
+        } else {
+          html += '<p class="text-success mt-3">No leaked credentials found for this domain.</p>';
+        }
+
+        html += '<p class="text-muted mt-2"><small>Fetched at: ' + DOMPurify.sanitize(data.leakcheck.fetched_at) + '</small></p>';
+      } else {
+        html += '<p class="text-muted">No LeakCheck data available. Click refresh to fetch.</p>';
+      }
+      html += '</div>';
+
+      html += '</div>'; // end tab-content
+
+      modalContent.innerHTML = html;
+      var modal = new bootstrap.Modal(document.getElementById('modal_xl_scroll_dialog'));
+      modal.show();
+    })
+    .catch(function(error) {
+      console.error('Error:', error);
+      Snackbar.show({
+        text: 'Failed to load domain details.',
+        pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 2000
+      });
+    });
+  }
+
+  // ──── Toggle Checked Credential ────
+  function toggleChecked(btn, leakDataId, credHash, checked) {
+    var url = "{% url 'threat_intel_toggle_checked' project.slug 0 %}".replace('/0', '/' + leakDataId);
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hash: credHash, checked: checked }),
+    })
+    .then(response => response.json())
+    .then(function(data) {
+      if (data.status) {
+        var row = btn.closest('tr');
+        if (checked) {
+          btn.className = 'btn btn-sm btn-success';
+          btn.innerHTML = '<i class="fe-check-circle"></i>';
+          btn.setAttribute('onclick', "toggleChecked(this, " + leakDataId + ", '" + credHash + "', false)");
+          row.style.opacity = '0.5';
+        } else {
+          btn.className = 'btn btn-sm btn-outline-secondary';
+          btn.innerHTML = '<i class="fe-circle"></i>';
+          btn.setAttribute('onclick', "toggleChecked(this, " + leakDataId + ", '" + credHash + "', true)");
+          row.style.opacity = '1';
+        }
+      }
+    })
+    .catch(function(error) { console.error('Error:', error); });
+  }
+
+  // ──── Manual Indicators ────
+  function showAddIndicatorModal() {
+    Swal.fire({
+      title: 'Add Manual Indicator',
+      html:
+        '<div class="mb-3 text-start">' +
+        '<label class="form-label">Type</label>' +
+        '<select id="swal-indicator-type" class="form-control">' +
+        '<option value="domain">Domain</option>' +
+        '<option value="subdomain">Subdomain</option>' +
+        '<option value="ip">IP Address</option>' +
+        '</select></div>' +
+        '<div class="mb-3 text-start">' +
+        '<label class="form-label">Value</label>' +
+        '<input id="swal-indicator-value" class="form-control" placeholder="e.g. example.com or 1.2.3.4">' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: 'Add & Check',
+      preConfirm: function() {
+        var type = document.getElementById('swal-indicator-type').value;
+        var value = document.getElementById('swal-indicator-value').value.trim();
+        if (!value) {
+          Swal.showValidationMessage('Value is required');
+          return false;
+        }
+        return { indicator_type: type, value: value };
+      },
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Checking OTX...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+        fetch("{% url 'threat_intel_add_indicator' project.slug %}", {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+          body: JSON.stringify(result.value),
+        })
+        .then(response => response.json())
+        .then(function(data) {
+          Swal.close();
+          if (data.status) {
+            var ind = data.indicator;
+            Snackbar.show({
+              text: 'Indicator added: ' + ind.value + ' (' + ind.pulse_count + ' pulses)',
+              pos: 'top-right', actionTextColor: '#42A5F5', duration: 3000
+            });
+            setTimeout(function() { window.location.reload(); }, 1000);
+          } else {
+            Snackbar.show({
+              text: data.error || 'Failed to add indicator.',
+              pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 3000
+            });
+          }
+        })
+        .catch(function(error) { Swal.close(); console.error('Error:', error); });
+      }
+    });
+  }
+
+  function deleteIndicator(indicatorId) {
+    Swal.fire({
+      title: 'Delete Indicator?',
+      text: 'This will remove the indicator and its data.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete',
+      confirmButtonColor: '#e7515a',
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        var url = "{% url 'threat_intel_delete_indicator' project.slug 0 %}".replace('/0', '/' + indicatorId);
+        fetch(url, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+        })
+        .then(response => response.json())
+        .then(function(data) {
+          if (data.status) {
+            document.getElementById('indicator-row-' + indicatorId).remove();
+            Snackbar.show({ text: 'Indicator deleted.', pos: 'top-right', actionTextColor: '#42A5F5', duration: 2000 });
+          }
+        });
+      }
+    });
+  }
+
+  function refreshIndicator(indicatorId) {
+    Swal.fire({ title: 'Checking OTX...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+    var url = "{% url 'threat_intel_refresh_indicator' project.slug 0 %}".replace('/0', '/' + indicatorId);
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+    })
+    .then(response => response.json())
+    .then(function(data) {
+      Swal.close();
+      if (data.status) {
+        Snackbar.show({ text: 'Indicator refreshed: ' + data.pulse_count + ' pulses', pos: 'top-right', actionTextColor: '#42A5F5', duration: 2000 });
+        setTimeout(function() { window.location.reload(); }, 1000);
+      } else {
+        Snackbar.show({ text: data.error || 'Refresh failed.', pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 3000 });
+      }
+    });
+  }
+
+  function viewIndicatorDetail(indicatorId, indicatorValue) {
+    var url = "{% url 'threat_intel_indicator_detail' project.slug 0 %}".replace('/0', '/' + indicatorId);
+    fetch(url)
+    .then(response => response.json())
+    .then(function(data) {
+      var modalTitle = document.getElementById('xl-modal_title');
+      var modalContent = document.getElementById('xl-modal-content');
+      modalTitle.textContent = 'Indicator: ' + indicatorValue;
+
+      var html = '<div class="row mb-3">';
+      html += '<div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h5>Type</h5><h4><span class="badge bg-primary">' + DOMPurify.sanitize(data.type) + '</span></h4></div></div></div>';
+      html += '<div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h5>Value</h5><h4>' + DOMPurify.sanitize(data.value) + '</h4></div></div></div>';
+      html += '<div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h5>Pulses</h5><h3 class="' + (data.pulse_count > 0 ? 'text-danger' : 'text-success') + '">' + data.pulse_count + '</h3></div></div></div>';
+      html += '</div>';
+
+      if (data.fetch_error) {
+        html += '<div class="alert alert-danger">Error: ' + DOMPurify.sanitize(data.fetch_error) + '</div>';
+      }
+
+      if (data.otx_data && data.otx_data.pulses && data.otx_data.pulses.length > 0) {
+        html += '<h5 class="mt-3">Associated Threat Pulses</h5>';
+        html += '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Name</th><th>Created</th><th>Adversary</th><th>Tags</th></tr></thead><tbody>';
+        data.otx_data.pulses.forEach(function(p) {
+          html += '<tr><td><a href="https://otx.alienvault.com/pulse/' + DOMPurify.sanitize(p.id || '') + '" target="_blank" class="text-primary">' + DOMPurify.sanitize(p.name) + '</a></td>';
+          html += '<td>' + DOMPurify.sanitize(p.created || '') + '</td>';
+          html += '<td>' + DOMPurify.sanitize(p.adversary || '-') + '</td>';
+          html += '<td>' + (p.tags || []).map(function(t) { return '<span class="badge bg-secondary me-1">' + DOMPurify.sanitize(t) + '</span>'; }).join('') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+      } else {
+        html += '<p class="text-success mt-3">No threat pulses found for this indicator.</p>';
+      }
+
+      if (data.fetched_at) {
+        html += '<p class="text-muted mt-2"><small>Fetched at: ' + DOMPurify.sanitize(data.fetched_at) + '</small></p>';
+      }
+
+      modalContent.innerHTML = html;
+      var modal = new bootstrap.Modal(document.getElementById('modal_xl_scroll_dialog'));
+      modal.show();
+    })
+    .catch(function(error) {
+      console.error('Error:', error);
+      Snackbar.show({ text: 'Failed to load indicator details.', pos: 'top-right', actionTextColor: '#fff', backgroundColor: '#e7515a', duration: 2000 });
+    });
+  }
+</script>
+{% endblock page_level_script %}

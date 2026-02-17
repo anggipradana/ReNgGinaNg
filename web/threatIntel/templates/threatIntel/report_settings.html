@@ -1,0 +1,201 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}
+Threat Intel Report Settings
+{% endblock title %}
+
+{% block custom_js_css_link %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/monolith.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
+{% endblock custom_js_css_link %}
+
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="#">Settings</a></li>
+<li class="breadcrumb-item active">Threat Intel Report Settings</li>
+{% endblock breadcrumb_title %}
+
+{% block page_title %}
+Threat Intel Report Settings
+{% endblock page_title %}
+
+{% block main_content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title">Threat Intelligence Report Settings</h4>
+        <p>Customize the PDF report generated for Threat Intelligence (Banking). These settings are separate from the Vulnerability Assessment report settings.</p>
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <h4 class="header-title mt-3">Report Colors</h4>
+          <table>
+            <tr>
+              <td>
+                <b>Primary Color</b>
+                <br>(Used for headings, accent lines, table headers, and badges.)
+              </td>
+              <td>
+                <div class="ms-4">
+                  <input type="hidden" name="primary_color" id="primary_color" value="{{primary_color}}">
+                  <div class="primary-color-picker"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <b>Secondary Color</b>
+                <br>(Used for cover page background.)
+              </td>
+              <td>
+                <div class="ms-4">
+                  <input type="hidden" name="secondary_color" id="secondary_color" value="{{secondary_color}}">
+                  <div class="secondary-color-picker"></div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <h4 class="header-title mt-3">Company Details</h4>
+          <div class="row">
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="company_name" class="form-label">Company Name</label>
+              <input type="text" class="form-control form-control-lg" id="company_name" name="company_name"
+                placeholder="Company Name" value="{{settings_obj.company_name|default_if_none:''}}">
+            </div>
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="company_address" class="form-label">Company Address</label>
+              <input type="text" class="form-control form-control-lg" id="company_address" name="company_address"
+                placeholder="Company Address" value="{{settings_obj.company_address|default_if_none:''}}">
+            </div>
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="company_website" class="form-label">Company Website</label>
+              <input type="text" class="form-control form-control-lg" id="company_website" name="company_website"
+                placeholder="https://company.com" value="{{settings_obj.company_website|default_if_none:''}}">
+            </div>
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="company_email" class="form-label">Company Email</label>
+              <input type="text" class="form-control form-control-lg" id="company_email" name="company_email"
+                placeholder="email@company.com" value="{{settings_obj.company_email|default_if_none:''}}">
+            </div>
+          </div>
+
+          <h4 class="header-title mt-3">Company Logo</h4>
+          <p>Upload your company logo to display on the report cover page.</p>
+          {% if settings_obj and settings_obj.company_logo %}
+          <div class="mb-3">
+            <label class="form-label">Current Logo</label>
+            <div class="d-flex align-items-center p-2 border rounded" style="background: #f8f9fa; display: inline-block;">
+              <img src="{{ settings_obj.company_logo.url }}" alt="Logo" style="max-height: 50px; max-width: 200px; object-fit: contain;">
+            </div>
+          </div>
+          {% endif %}
+          <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2 mb-3">
+            <label for="company_logo" class="form-label">{% if settings_obj and settings_obj.company_logo %}Replace Logo{% else %}Upload Logo{% endif %}</label>
+            <input type="file" class="form-control" id="company_logo" name="company_logo" accept="image/*">
+          </div>
+
+          <h4 class="header-title mt-3">Document Information</h4>
+          <div class="row">
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="document_number" class="form-label">Document Number</label>
+              <input type="text" class="form-control form-control-lg" id="document_number" name="document_number"
+                placeholder="e.g. DOC-TI-2026-001" value="{{settings_obj.document_number|default_if_none:''}}">
+            </div>
+            <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2">
+              <label for="classification_label" class="form-label">Classification Label</label>
+              <input type="text" class="form-control form-control-lg" id="classification_label" name="classification_label"
+                placeholder="CONFIDENTIAL - FOR INTERNAL USE ONLY" value="{{settings_obj.classification_label|default_if_none:'CONFIDENTIAL - FOR INTERNAL USE ONLY'}}">
+            </div>
+          </div>
+
+          <div class="d-flex mt-3">
+            <div class="d-inline-block"><h4 class="header-title">Show Footer?</h4></div>
+            <div class="d-inline-block ms-3">
+              <input type="checkbox" class="form-check-input" id="show_footer" name="show_footer"
+                {% if settings_obj and settings_obj.show_footer %}checked{% elif not settings_obj %}checked{% endif %}>
+            </div>
+          </div>
+          <p>Footer text appears at the bottom of every page.</p>
+          <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2 mb-3">
+            <label for="footer_text" class="form-label">Footer Text</label>
+            <input type="text" class="form-control form-control-lg" id="footer_text" name="footer_text"
+              placeholder="CONFIDENTIAL" value="{{settings_obj.footer_text|default_if_none:'CONFIDENTIAL'}}">
+          </div>
+
+          <h4 class="header-title mt-3">Report Language</h4>
+          <div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 col-12 mt-2 mb-3">
+            <label for="report_language" class="form-label">Language</label>
+            <select class="form-control form-control-lg" id="report_language" name="report_language">
+              <option value="en" {% if not settings_obj or settings_obj.report_language == 'en' %}selected{% endif %}>English</option>
+              <option value="id" {% if settings_obj and settings_obj.report_language == 'id' %}selected{% endif %}>Indonesian (Bahasa Indonesia)</option>
+            </select>
+          </div>
+
+          <h4 class="header-title mt-3">Banking Keywords Filter</h4>
+          <p>Comma-separated keywords used to filter OTX threat pulses relevant to banking/financial sector. These keywords are used in Section 3 (Financial Threat Overview) of the report.</p>
+          <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 mt-2 mb-3">
+            <label for="banking_keywords" class="form-label">Banking Keywords</label>
+            <textarea class="form-control" id="banking_keywords" name="banking_keywords" rows="3"
+              placeholder="bank,banking,financial,swift,payment,atm,malware,trojan,phishing,credential,fraud">{{settings_obj.banking_keywords|default_if_none:'bank,banking,financial,swift,payment,atm,malware,trojan,phishing,credential,fraud'}}</textarea>
+          </div>
+
+          <input type="submit" value="Save Report Settings" class="btn btn-primary float-end mt-2">
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock main_content %}
+
+
+{% block page_level_script %}
+<script type="text/javascript">
+const primary_pickr = Pickr.create({
+  el: '.primary-color-picker',
+  theme: 'monolith',
+  swatches: [
+    'rgb(26, 35, 126)',
+    'rgb(21, 101, 192)',
+    'rgb(0, 77, 64)',
+    'rgb(136, 14, 79)',
+    'rgb(230, 81, 0)',
+  ],
+  default: '{{primary_color}}',
+  components: {
+    preview: true, opacity: true, hue: true,
+    interaction: { hex: true, input: true }
+  }
+});
+primary_pickr.on('save', (color, instance) => {
+  document.getElementById("primary_color").value = primary_pickr.getColor().toHEXA().toString(0);
+}).on('change', (color, source, instance) => {
+  primary_pickr.setColor(color.toHEXA().toString(0));
+  document.getElementById("primary_color").value = primary_pickr.getColor().toHEXA().toString(0);
+});
+
+const secondary_pickr = Pickr.create({
+  el: '.secondary-color-picker',
+  theme: 'monolith',
+  swatches: [
+    'rgb(13, 27, 42)',
+    'rgb(33, 33, 33)',
+    'rgb(52, 73, 94)',
+    'rgb(44, 62, 80)',
+  ],
+  default: '{{secondary_color}}',
+  components: {
+    preview: true, opacity: true, hue: true,
+    interaction: { hex: true, input: true }
+  }
+});
+secondary_pickr.on('save', (color, instance) => {
+  document.getElementById("secondary_color").value = secondary_pickr.getColor().toHEXA().toString(0);
+}).on('change', (color, source, instance) => {
+  secondary_pickr.setColor(color.toHEXA().toString(0));
+  document.getElementById("secondary_color").value = secondary_pickr.getColor().toHEXA().toString(0);
+});
+</script>
+{% endblock page_level_script %}

@@ -1,0 +1,106 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% load custom_tags %}
+{% block title %}
+API Vault
+{% endblock title %}
+
+{% block custom_js_css_link %}
+{% endblock custom_js_css_link %}
+
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="#">Settings</a></li>
+<li class="breadcrumb-item active">API Vault</li>
+{% endblock breadcrumb_title %}
+
+{% block page_title %}
+API Vault
+{% endblock page_title %}
+
+{% block main_content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+          <i class="fe-info me-1"></i>
+          For security, stored API keys are never displayed. Enter a new value to update a key, or leave blank to keep the existing one.
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <form method="POST" autocomplete="off">
+          {% csrf_token %}
+          <div class="col-12">
+            <div class="p-sm-3">
+              <div class="mb-3">
+                <label for="key_openai" class="form-label">OpenAI {% if openai_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">OpenAI keys will be used to generate vulnerability description, remediation, impact and vulnerability report writing using GPT.</p>
+                <input class="form-control" type="password" id="key_openai" name="key_openai" placeholder="{% if openai_key %}Key is set — enter new value to update{% else %}Enter OpenAI Key{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional but recommended. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">https://platform.openai.com/api-keys</a></span>
+              </div>
+              <div class="mb-3">
+                <label for="key_netlas" class="form-label">Netlas {% if netlas_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">Netlas keys will be used to get whois information and other OSINT related data.</p>
+                <input class="form-control" type="password" id="key_netlas" name="key_netlas" placeholder="{% if netlas_key %}Key is set — enter new value to update{% else %}Enter Netlas Key{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional. Get your API key from <a href="https://netlas.io" target="_blank">https://netlas.io</a></span>
+              </div>
+              <div class="mb-3">
+                <label for="key_chaos" class="form-label">Chaos by Project Discovery {% if chaos_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">Chaos keys will be used for subdomain enumeration and recon data for Public Bug Bounty Programs.</p>
+                <input class="form-control" type="password" id="key_chaos" name="key_chaos" placeholder="{% if chaos_key %}Key is set — enter new value to update{% else %}Enter Chaos Key{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional but recommended. Get your API key from <a href="https://cloud.projectdiscovery.io" target="_blank">https://cloud.projectdiscovery.io</a></span>
+              </div>
+              <div class="mb-3">
+                <label for="key_wpscan" class="form-label">WPScan {% if wpscan_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">WPScan API token will be used to fetch WordPress vulnerability data during scans. Free tier: 25 requests/day.</p>
+                <input class="form-control" type="password" id="key_wpscan" name="key_wpscan" placeholder="{% if wpscan_key %}Key is set — enter new value to update{% else %}Enter WPScan API Token{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional but recommended for WordPress scanning. Get your API token from <a href="https://wpscan.com/api" target="_blank">https://wpscan.com/api</a></span>
+              </div>
+              <div class="mb-3">
+                <label for="key_otx" class="form-label">OTX AlienVault {% if otx_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">OTX AlienVault API key is used for Threat Intelligence — fetching domain threat data including pulses, malware samples, passive DNS, and reputation scores.</p>
+                <input class="form-control" type="password" id="key_otx" name="key_otx" placeholder="{% if otx_key %}Key is set — enter new value to update{% else %}Enter OTX AlienVault API Key{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional. Get your API key from <a href="https://otx.alienvault.com/api" target="_blank">https://otx.alienvault.com/api</a></span>
+              </div>
+              <div class="mb-3">
+                <label for="key_leakcheck" class="form-label">LeakCheck {% if leakcheck_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                <p class="text-muted">LeakCheck API key is used for Threat Intelligence — checking for dark web credential leaks and data breaches associated with your target domains.</p>
+                <input class="form-control" type="password" id="key_leakcheck" name="key_leakcheck" placeholder="{% if leakcheck_key %}Key is set — enter new value to update{% else %}Enter LeakCheck API Key{% endif %}" autocomplete="new-password">
+                <span class="text-muted float-end optional-text mt-2">This is optional. Get your API key from <a href="https://leakcheck.io" target="_blank">https://leakcheck.io</a></span>
+              </div>
+              {% if user_preferences.bug_bounty_mode %}
+                <div class="mb-3">
+                  <label for="key_hackerone" class="form-label">Hackerone {% if hackerone_key %}<span class="badge bg-success ms-1">Configured</span>{% endif %}</label>
+                  <div class="row">
+                  <p class="text-muted">Hackerone Keys will be used to import targets, bookmarked programs, and submit automated vulnerability report to Hackerone. This is a bug bounty specific feature.</p>
+                  <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
+                    <label for="hackerone_username" class="form-label">Hackerone Username (Not email)</label>
+                    <input class="form-control" type="text" id="username_hackerone" name="username_hackerone" placeholder="Enter Hackerone Username" value="{{hackerone_username}}">
+                  </div>
+                  <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
+                    <label for="hackerone_key" class="form-label">Generate your <a href="https://hackerone.com/settings/api_token/edit" target="_blank">API Token from here <i class="fe-external-link"></i></a></label>
+                    <input class="form-control" type="password" id="key_hackerone" name="key_hackerone" placeholder="{% if hackerone_key %}Key is set — enter new value to update{% else %}Enter Hackerone Token{% endif %}" autocomplete="new-password">
+                  </div>
+                  <div class="col-12">
+                    <p class="text-muted float-end mt-2 mb-2">This is optional but recommended for bug hunters. Get your API key from <a href="https://api.hackerone.com/getting-started-hacker-api/#getting-started-hacker-api" class="text-primary" target="_blank">Hackerone Documentation</a></p>
+                  </div>
+                  <div class="col-12">
+                    <a href="#" onclick="test_hackerone()" class="text-info float-end">Test my hackerone keys <i class="fe-check-circle"></i></a>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+              </div>
+              <div class="mb-0">
+                <button class="btn btn-primary float-sm-end my-4" type="submit"> Update API Keys</button>
+              </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock main_content %}
+
+
+{% block page_level_script %}
+{% endblock page_level_script %}
