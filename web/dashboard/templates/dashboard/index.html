@@ -15,7 +15,7 @@ Dashboard
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<span class="badge badge-soft-info">ReNgGinaNg {{ RENGGINANG_CURRENT_VERSION }}</span>
+<span class="badge badge-soft-info">ReNgGinaNg {{ RENGINE_CURRENT_VERSION }}</span>
 {% endblock breadcrumb_title %}
 
 {% block main_content %}
@@ -40,6 +40,9 @@ Dashboard
 						</a>
 						<a id="va_download_btn" href="#" class="btn btn-sm btn-outline-danger text-nowrap">
 							<i class="fe-download me-1"></i> Download
+						</a>
+						<a href="{% url 'report_settings' current_project.slug %}" class="btn btn-sm btn-soft-secondary text-nowrap">
+							<i class="fe-settings me-1"></i> Report Settings
 						</a>
 					</div>
 				</div>
@@ -122,8 +125,11 @@ Dashboard
 						<a href="{% url 'threat_intel_generate_report' current_project.slug %}" target="_blank" class="btn btn-sm btn-dark me-1">
 							<i class="fe-file-text me-1"></i> PDF Report
 						</a>
-						<a href="{% url 'threat_intel_generate_report' current_project.slug %}?download=1" class="btn btn-sm btn-outline-dark">
+						<a href="{% url 'threat_intel_generate_report' current_project.slug %}?download=1" class="btn btn-sm btn-outline-dark me-1">
 							<i class="fe-download"></i>
+						</a>
+						<a href="{% url 'threat_report_settings' current_project.slug %}" class="btn btn-sm btn-soft-secondary">
+							<i class="fe-settings me-1"></i> Report Settings
 						</a>
 					</div>
 				</div>
@@ -173,23 +179,23 @@ Dashboard
 </div>
 <div class="row">
 	{% if ti_ioc_type_counts %}
-	<div class="col-xl-4 col-lg-6 col-12">
-		<div class="card">
-			<div class="card-body">
+	<div class="col-xl-4 col-lg-6 col-12 d-flex">
+		<div class="card w-100">
+			<div class="card-body d-flex flex-column">
 				<h4 class="header-title mb-0">IoC Type Distribution</h4>
 				<p class="text-muted mb-2"><small>{{ti_total_iocs}} indicators from OTX pulses</small></p>
-				<div id="ti_ioc_type_chart" class="apex-charts"></div>
+				<div id="ti_ioc_type_chart" class="apex-charts flex-grow-1"></div>
 			</div>
 		</div>
 	</div>
 	{% endif %}
 	{% if ti_leak_per_domain %}
-	<div class="col-xl-4 col-lg-6 col-12">
-		<div class="card">
-			<div class="card-body">
+	<div class="col-xl-4 col-lg-6 col-12 d-flex">
+		<div class="card w-100">
+			<div class="card-body d-flex flex-column">
 				<h4 class="header-title mb-0">Leaked Credentials by Domain</h4>
 				<p class="text-muted mb-2"><small>Credential exposures from LeakCheck</small></p>
-				<div id="ti_leak_domain_chart" class="apex-charts"></div>
+				<div id="ti_leak_domain_chart" class="apex-charts flex-grow-1"></div>
 			</div>
 		</div>
 	</div>

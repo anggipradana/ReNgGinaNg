@@ -54,7 +54,7 @@ def initiate_scan(
 		domain_id,
 		engine_id=None,
 		scan_type=LIVE_SCAN,
-		results_dir=RENGGINANG_RESULTS,
+		results_dir=RENGINE_RESULTS,
 		imported_subdomains=[],
 		out_of_scope_subdomains=[],
 		initiated_by_id=None,
@@ -234,7 +234,7 @@ def initiate_subscan(
 		subdomain_id,
 		engine_id=None,
 		scan_type=None,
-		results_dir=RENGGINANG_RESULTS,
+		results_dir=RENGINE_RESULTS,
 		starting_point_path='',
 		excluded_paths=[],
 	):
@@ -3232,6 +3232,7 @@ def send_notif(
 	send_slack_message(message)
 	send_lark_message(message)
 	send_telegram_message(message)
+	send_google_chat_message(message)
 
 
 @app.task(name='send_scan_notif', bind=False, queue='send_scan_notif_queue')
@@ -4965,7 +4966,7 @@ def save_imported_subdomains(subdomains, ctx={}):
 	"""
 	domain_id = ctx['domain_id']
 	domain = Domain.objects.get(pk=domain_id)
-	results_dir = ctx.get('results_dir', RENGGINANG_RESULTS)
+	results_dir = ctx.get('results_dir', RENGINE_RESULTS)
 
 	# Validate each subdomain and de-duplicate entries
 	subdomains = list(set([

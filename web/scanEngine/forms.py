@@ -231,6 +231,25 @@ class NotificationForm(forms.ModelForm):
                 "id": "telegram_checkbox",
             }))
 
+    send_to_google_chat = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "form-check-input",
+                "id": "google_chat_checkbox",
+            }))
+
+    google_chat_hook_url = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-control h-100",
+                "id": "google_chat_hook_url",
+                "placeholder": "https://chat.googleapis.com/v1/spaces/XXXXX/messages?key=XXXXX&token=XXXXX",
+            },
+            render_value=True
+        ))
+
     telegram_bot_token = forms.CharField(
         required=False,
         widget=forms.PasswordInput(
@@ -310,12 +329,14 @@ class NotificationForm(forms.ModelForm):
         self.initial['send_to_lark'] = key.send_to_lark
         self.initial['send_to_discord'] = key.send_to_discord
         self.initial['send_to_telegram'] = key.send_to_telegram
+        self.initial['send_to_google_chat'] = key.send_to_google_chat
 
         self.initial['slack_hook_url'] = key.slack_hook_url
         self.initial['lark_hook_url'] = key.lark_hook_url
         self.initial['discord_hook_url'] = key.discord_hook_url
         self.initial['telegram_bot_token'] = key.telegram_bot_token
         self.initial['telegram_bot_chat_id'] = key.telegram_bot_chat_id
+        self.initial['google_chat_hook_url'] = key.google_chat_hook_url
 
         self.initial['send_scan_status_notif'] = key.send_scan_status_notif
         self.initial['send_interesting_notif'] = key.send_interesting_notif
@@ -334,6 +355,8 @@ class NotificationForm(forms.ModelForm):
         if not key.send_to_telegram:
             self.fields['telegram_bot_token'].widget.attrs['readonly'] = True
             self.fields['telegram_bot_chat_id'].widget.attrs['readonly'] = True
+        if not key.send_to_google_chat:
+            self.fields['google_chat_hook_url'].widget.attrs['readonly'] = True
 
 
     def set_initial(self):
@@ -341,12 +364,14 @@ class NotificationForm(forms.ModelForm):
         self.initial['send_to_lark'] = False
         self.initial['send_to_discord'] = False
         self.initial['send_to_telegram'] = False
+        self.initial['send_to_google_chat'] = False
 
         self.fields['slack_hook_url'].widget.attrs['readonly'] = True
         self.fields['lark_hook_url'].widget.attrs['readonly'] = True
         self.fields['discord_hook_url'].widget.attrs['readonly'] = True
         self.fields['telegram_bot_token'].widget.attrs['readonly'] = True
         self.fields['telegram_bot_chat_id'].widget.attrs['readonly'] = True
+        self.fields['google_chat_hook_url'].widget.attrs['readonly'] = True
 
         self.initial['send_scan_status_notif'] = True
         self.initial['send_interesting_notif'] = True
@@ -533,12 +558,12 @@ class ReportForm(forms.ModelForm):
             "placeholder": "Footer Text © Your Company",
         }))
 
-    show_rengginang_banner = forms.BooleanField(
+    show_rengine_banner = forms.BooleanField(
         required=False,
         widget=forms.CheckboxInput(
             attrs={
                 "class": "form-check-input",
-                "id": "show_rengginang_banner",
+                "id": "show_rengine_banner",
             }))
 
     show_executive_summary = forms.BooleanField(
@@ -611,7 +636,7 @@ class ReportForm(forms.ModelForm):
         self.initial['company_address'] = key.company_address
         self.initial['company_website'] = key.company_website
         self.initial['company_email'] = key.company_email
-        self.initial['show_rengginang_banner'] = key.show_rengginang_banner
+        self.initial['show_rengine_banner'] = key.show_rengine_banner
         self.initial['show_executive_summary'] = key.show_executive_summary
         self.initial['executive_summary_description'] = key.executive_summary_description
         self.initial['executive_summary_description_id'] = key.executive_summary_description_id
@@ -623,7 +648,7 @@ class ReportForm(forms.ModelForm):
         self.initial['document_number'] = key.document_number or ''
 
     def set_initial(self):
-        self.initial['show_rengginang_banner'] = True
+        self.initial['show_rengine_banner'] = True
         self.initial['show_footer'] = False
         self.initial['show_executive_summary'] = False
         self.initial['primary_color'] = '#FFB74D'

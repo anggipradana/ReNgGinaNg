@@ -12,7 +12,7 @@ from django.urls import reverse
 from rolepermissions.decorators import has_permission_decorator
 
 from ReNgGinaNg.common_func import *
-from ReNgGinaNg.tasks import (run_command, send_discord_message, send_slack_message,send_lark_message, send_telegram_message)
+from ReNgGinaNg.tasks import (run_command, send_discord_message, send_slack_message, send_lark_message, send_telegram_message, send_google_chat_message)
 from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
@@ -274,7 +274,7 @@ def tool_specific_settings(request, slug):
 
 
 @has_permission_decorator(PERM_MODIFY_SYSTEM_CONFIGURATIONS, redirect_url=FOUR_OH_FOUR_URL)
-def ReNgGinaNg_settings(request, slug):
+def rengine_settings(request, slug):
     context = {}
 
     total, used, _ = shutil.disk_usage("/")
@@ -286,10 +286,10 @@ def ReNgGinaNg_settings(request, slug):
     context['consumed_percent'] = int(100 * float(used)/float(total))
 
     context['settings_nav_active'] = 'active'
-    context['ReNgGinaNg_settings_li'] = 'active'
+    context['rengine_settings_li'] = 'active'
     context['settings_ul_show'] = 'show'
 
-    return render(request, 'scanEngine/settings/ReNgGinaNg.html', context)
+    return render(request, 'scanEngine/settings/rengine.html', context)
 
 
 @has_permission_decorator(PERM_MODIFY_SCAN_CONFIGURATIONS, redirect_url=FOUR_OH_FOUR_URL)
@@ -315,6 +315,7 @@ def notification_settings(request, slug):
             send_lark_message('*ReNgGinaNg*\nCongratulations! your notification services are working.')
             send_telegram_message('*ReNgGinaNg*\nCongratulations! your notification services are working.')
             send_discord_message('**ReNgGinaNg**\nCongratulations! your notification services are working.')
+            send_google_chat_message('*ReNgGinaNg*\nCongratulations! your notification services are working.')
             messages.add_message(
                 request,
                 messages.INFO,

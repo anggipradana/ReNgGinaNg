@@ -73,12 +73,14 @@ class Notification(models.Model):
     send_to_lark = models.BooleanField(default=False)
     send_to_discord = models.BooleanField(default=False)
     send_to_telegram = models.BooleanField(default=False)
+    send_to_google_chat = models.BooleanField(default=False)
 
     slack_hook_url = models.CharField(max_length=200, null=True, blank=True)
     lark_hook_url = models.CharField(max_length=200, null=True, blank=True)
     discord_hook_url = models.CharField(max_length=200, null=True, blank=True)
     telegram_bot_token = models.CharField(max_length=100, null=True, blank=True)
     telegram_bot_chat_id = models.CharField(max_length=100, null=True, blank=True)
+    google_chat_hook_url = models.CharField(max_length=300, null=True, blank=True)
 
     send_scan_status_notif = models.BooleanField(default=True)
     send_interesting_notif = models.BooleanField(default=True)
@@ -115,7 +117,7 @@ class VulnerabilityReportSetting(models.Model):
     company_address = models.CharField(max_length=200, null=True, blank=True)
     company_email = models.CharField(max_length=100, null=True, blank=True)
     company_website = models.CharField(max_length=100, null=True, blank=True)
-    show_rengginang_banner = models.BooleanField(default=True)
+    show_rengine_banner = models.BooleanField(default=True)
     show_executive_summary = models.BooleanField(default=True)
     executive_summary_description = models.TextField(blank=True, null=True)
     executive_summary_description_id = models.TextField(blank=True, null=True)
