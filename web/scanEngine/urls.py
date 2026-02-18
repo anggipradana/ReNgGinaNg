@@ -61,9 +61,9 @@ urlpatterns = [
         views.llm_toolkit_section,
         name='llm_toolkit'),
     path(
-        '<slug:slug>/ReNgGinaNg_settings',
-        views.ReNgGinaNg_settings,
-        name='ReNgGinaNg_settings'),
+        '<slug:slug>/rengginang_settings',
+        views.rengginang_settings,
+        name='rengginang_settings'),
     path(
         '<slug:slug>/notification_settings',
         views.notification_settings,

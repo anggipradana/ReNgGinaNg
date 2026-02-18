@@ -12,7 +12,7 @@ mimetypes.add_type("text/javascript", ".js", True)
 mimetypes.add_type("text/css", ".css", True)
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#       RENGINE CONFIGURATIONS
+#       RENGGINANG CONFIGURATIONS
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,7 +43,7 @@ DEFAULT_GET_GPT_REPORT = env.bool('DEFAULT_GET_GPT_REPORT', default=True)
 ALLOWED_HOSTS = ['*']
 SECRET_KEY = first_run(SECRET_FILE, BASE_DIR)
 
-# Rengine version
+# ReNgGinaNg version
 # reads current version from a file called .version
 VERSION_FILE = os.path.join(BASE_DIR, '.version')
 if os.path.exists(VERSION_FILE):

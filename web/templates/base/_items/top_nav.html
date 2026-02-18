@@ -117,7 +117,7 @@
               <a href="{% url 'threat_report_settings' current_project.slug %}" class="dropdown-item">Threat Intel Report Settings</a>
               {% endif %}
               {% if user|can:'modify_system_configurations' %}
-              <a href="{% url 'ReNgGinaNg_settings' current_project.slug %}" class="dropdown-item">ReNgGinaNg Settings</a>
+              <a href="{% url 'rengginang_settings' current_project.slug %}" class="dropdown-item">ReNgGinaNg Settings</a>
               {% endif %}
               {% if user|can:'modify_scan_configurations' %}
                 {% if user_preferences.bug_bounty_mode %}
