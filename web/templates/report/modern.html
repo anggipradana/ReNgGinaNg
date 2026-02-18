@@ -585,33 +585,42 @@
             border-radius: 4mm;
             box-shadow: 0 2mm 4mm rgba(0,0,0,0.1);
             overflow: hidden;
+            page-break-inside: avoid;
         }
         .vuln-card-header {
-            padding: 1mm 4mm;
+            padding: 3mm 5mm;
             position: relative;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
-        .card-header h4 {
-            font-size: 14pt;
+        .vuln-card-header h4 {
+            font-size: 12pt;
             margin: 0;
             font-weight: 500;
+            color: #2c3e50;
+            flex: 1;
+            padding-right: 3mm;
+        }
+        .vuln-card-header h4::after {
+            content: none;
         }
         .vuln-severity {
-            font-size: 11pt;
+            font-size: 10pt;
             font-weight: bold;
-            padding: 1mm 3mm;
+            padding: 1.5mm 4mm;
             border-radius: 2mm;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .vuln-badge {
             display: inline-block;
             padding: 1mm 3mm;
             border-radius: 2mm;
-            font-size: 9pt;
+            font-size: 8pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin-right: 3mm;
+            margin-right: 2mm;
             margin-bottom: 2mm;
         }
         .badge-source {
@@ -626,35 +635,42 @@
             background-color: #3498db;
             color: white;
         }
-
         .badge-cwe {
             background-color: #9b59b6;
             color: white;
         }
         .vuln-card-body {
-            padding: 5mm 2mm;
+            padding: 4mm 5mm;
+        }
+        .vuln-card-body p {
+            margin: 0 0 2mm 0;
         }
         .vuln-section {
-            margin-bottom: 4mm;
-            padding-bottom: 4mm;
-            border-bottom: 1pt solid #e0e0e0;
+            margin-bottom: 3mm;
+            padding-bottom: 3mm;
+            border-bottom: 0.5pt solid #e8e8e8;
         }
         .vuln-section:last-child {
             border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
         .section-title {
             font-weight: bold;
             color: #2c3e50;
-            font-size: 11pt;
-            margin-bottom: 2mm;
+            font-size: 10pt;
+            margin-bottom: 1.5mm;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .vuln-cvss-details {
             background-color: #f8f9fa;
-            padding: 4mm;
+            padding: 3mm 4mm;
             border-radius: 2mm;
             font-family: monospace;
-            font-size: 9pt;
+            font-size: 8pt;
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
         .vulnerable-url-li {
             background-color: #fff3cd;
@@ -662,11 +678,19 @@
             margin-bottom: 2mm;
             border-radius: 2mm;
             font-family: monospace;
-            font-size: 9pt;
+            font-size: 8pt;
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
         .references-li a {
             color: #3498db;
             text-decoration: none;
+            word-break: break-all;
+            overflow-wrap: break-word;
+        }
+        .references-li li {
+            margin-bottom: 1mm;
+            font-size: 9pt;
         }
         .no-style-a{
             color: #3498db;
@@ -1098,13 +1122,12 @@
                 {% regroup all_vulnerabilities by get_path as grouped_vulnerabilities %}
                 {% for vulnerabilities in grouped_vulnerabilities %}
                     {% for vulnerability in vulnerabilities.list %}
-                        <div class="vuln-card" id="vuln_{{ vulnerability.name.split|join:'_' }}">
+                        <div class="vuln-card" id="vuln_{{ vulnerability.name.split|join:'_' }}" style="border-left: 3px solid {% if vulnerability.severity == -1 %}#95a5a6{% elif vulnerability.severity == 0 %}#3498db{% elif vulnerability.severity == 1 %}#27ae60{% elif vulnerability.severity == 2 %}#f39c12{% elif vulnerability.severity == 3 %}#e67e22{% elif vulnerability.severity == 4 %}#e74c3c{% else %}#95a5a6{% endif %};">
                             <div class="vuln-card-header {% if vulnerability.severity == 0 %}info-td{% elif vulnerability.severity == 1 %}low-td{% elif vulnerability.severity == 2 %}medium-td{% elif vulnerability.severity == 3 %}high-td{% elif vulnerability.severity == 4 %}critical-td{% endif %}">
                                 <h4>
                                     {{ vulnerability.name }}
                                     {% if vulnerabilities.grouper %}
-                                        <br>
-                                        {{ labels.in_target }} {{ vulnerabilities.grouper }}
+                                        <br><small style="font-size: 9pt; color: #7f8c8d;">{{ labels.in_target }} {{ vulnerabilities.grouper }}</small>
                                     {% endif %}
                                 </h4>
                                 <div class="vuln-severity {% if vulnerability.severity == -1 %}unknown-severity-badge{% elif vulnerability.severity == 0 %}info-severity-badge{% elif vulnerability.severity == 1 %}low-severity-badge{% elif vulnerability.severity == 2 %}medium-severity-badge{% elif vulnerability.severity == 3 %}high-severity-badge{% elif vulnerability.severity == 4 %}critical-severity-badge{% endif %}">
@@ -1145,23 +1168,19 @@
                                 {% if vulnerability.description %}
                                 <div class="vuln-section">
                                     <p class="section-title">{{ labels.description }}</p>
-                                    <p>
-                                        {{vulnerability.description|linebreaks}}
-                                    </p>
+                                    {{vulnerability.description|linebreaks}}
                                 </div>
                                 {% endif %}
-                                 {% if vulnerability.impact %}
-                                    <div class="vuln-section">
-                                        <p class="section-title">{{ labels.impact }}</p>
-                                        <p>
-                                            {{vulnerability.impact|linebreaks}}
-                                        </p>
-                                    </div>
+                                {% if vulnerability.impact %}
+                                <div class="vuln-section">
+                                    <p class="section-title">{{ labels.impact }}</p>
+                                    {{vulnerability.impact|linebreaks}}
+                                </div>
                                 {% endif %}
                                 {% if vulnerability.remediation %}
                                 <div class="vuln-section">
                                     <p class="section-title">{{ labels.remediation }}</p>
-                                    <p>{{vulnerability.remediation|linebreaks}}</p>
+                                    {{vulnerability.remediation|linebreaks}}
                                 </div>
                                 {% endif %}
                                 <div class="vuln-section">

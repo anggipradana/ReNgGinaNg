@@ -413,6 +413,13 @@
       a{
         color: #007bff;
         text-decoration: none;
+        word-break: break-all;
+        overflow-wrap: break-word;
+      }
+
+      .vuln-item {
+        page-break-inside: avoid;
+        margin-bottom: 8mm;
       }
 
       .ml-8{
@@ -934,7 +941,7 @@
           {% regroup all_vulnerabilities by get_path as grouped_vulnerabilities %}
           {% for vulnerabilities in grouped_vulnerabilities %}
             {% for vulnerability in vulnerabilities.list %}
-              <div>
+              <div class="vuln-item">
                 <h4 class="content-heading" id="vuln_{{vulnerability.name.split|join:'_'}}">
                   <span>{{vulnerability.name}}
                     {% if vulnerabilities.grouper %}
