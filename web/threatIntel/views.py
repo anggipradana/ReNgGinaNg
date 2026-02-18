@@ -300,10 +300,10 @@ def calculate_risk_score(otx_data_qs, leak_data_qs, va_counts=None):
 	has_va = va_counts is not None and any(va_counts.get(k, 0) > 0 for k in ('critical', 'high', 'medium', 'low'))
 
 	# Weights: with VA data the total is redistributed
-	# With VA:    rep=15 + leak=30 + malware=8 + exposure=17 + vuln=30 = 100
+	# With VA:    rep=10 + leak=30 + malware=8 + exposure=12 + vuln=40 = 100
 	# Without VA: rep=20 + leak=45 + malware=10 + exposure=25 = 100
 	if has_va:
-		REP_MAX, LEAK_MAX, MAL_MAX, EXP_MAX, VULN_MAX = 15, 30, 8, 17, 30
+		REP_MAX, LEAK_MAX, MAL_MAX, EXP_MAX, VULN_MAX = 10, 30, 8, 12, 40
 	else:
 		REP_MAX, LEAK_MAX, MAL_MAX, EXP_MAX, VULN_MAX = 20, 45, 10, 25, 0
 
@@ -357,7 +357,9 @@ def calculate_risk_score(otx_data_qs, leak_data_qs, va_counts=None):
 		exposure_score = 0
 
 	# --- Component 5: Vulnerability Assessment ---
-	# Based on two factors: average severity (0-4) and volume
+	# Based on weighted vulnerability density per domain:
+	# weighted_vulns = critical*4 + high*3 + medium*2 + low*1
+	# This naturally combines severity AND volume into one metric.
 	vuln_score = 0
 	avg_severity = 0.0
 	total_vulns = 0
@@ -369,27 +371,29 @@ def calculate_risk_score(otx_data_qs, leak_data_qs, va_counts=None):
 		total_vulns = critical + high + medium + low
 
 		if total_vulns > 0:
-			# Average severity (critical=4, high=3, medium=2, low=1)
 			avg_severity = (critical * 4 + high * 3 + medium * 2 + low * 1) / total_vulns
+			weighted_vulns = critical * 4 + high * 3 + medium * 2 + low * 1
+			weighted_per_domain = weighted_vulns / (total_domains or 1)
 
-			# Severity factor (0-1): avg_severity 1.0=0.1, 2.0=0.35, 3.0=0.7, 4.0=1.0
-			severity_factor = min(1.0, (avg_severity / 4.0) ** 1.5)
-
-			# Volume factor (0-1): scales with vuln count per domain
-			vulns_per_domain = total_vulns / (total_domains or 1)
-			if vulns_per_domain >= 20:
-				volume_factor = 1.0
-			elif vulns_per_domain >= 10:
-				volume_factor = 0.8
-			elif vulns_per_domain >= 5:
-				volume_factor = 0.6
-			elif vulns_per_domain >= 2:
-				volume_factor = 0.4
+			# Base score from weighted density per domain (0 to VULN_MAX*0.7)
+			if weighted_per_domain >= 25:
+				base = VULN_MAX * 0.70
+			elif weighted_per_domain >= 15:
+				base = VULN_MAX * 0.60
+			elif weighted_per_domain >= 10:
+				base = VULN_MAX * 0.48
+			elif weighted_per_domain >= 5:
+				base = VULN_MAX * 0.35
+			elif weighted_per_domain >= 2:
+				base = VULN_MAX * 0.20
 			else:
-				volume_factor = 0.2
+				base = VULN_MAX * 0.10
 
-			# Combined: 60% severity weight, 40% volume weight
-			vuln_score = min(VULN_MAX, round(VULN_MAX * (severity_factor * 0.6 + volume_factor * 0.4)))
+			# Severity multiplier: avg_severity drives bonus (0 to VULN_MAX*0.3)
+			# avg=4.0 → 0.30, avg=3.0 → 0.20, avg=2.0 → 0.10, avg=1.0 → 0.02
+			severity_bonus = VULN_MAX * 0.30 * ((avg_severity / 4.0) ** 2)
+
+			vuln_score = min(VULN_MAX, round(base + severity_bonus))
 
 	total = min(100, reputation_score + leak_score + malware_score + exposure_score + vuln_score)
 
