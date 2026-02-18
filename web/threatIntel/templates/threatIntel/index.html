@@ -153,12 +153,20 @@ Threat Intelligence
     </div>
   </div>
   {% endif %}
-  {% if cve_per_pulse %}
+  {% if cves %}
   <div class="col-xl-4 col-lg-6 col-12">
     <div class="card">
       <div class="card-body">
-        <h4 class="header-title mb-3"><i class="fe-alert-octagon me-1 text-danger"></i> CVE Feeds References <span class="badge bg-danger ms-1">{{cves|length}}</span></h4>
-        <div id="cve_per_pulse_chart" class="apex-charts" style="min-height: 280px;"></div>
+        <h4 class="header-title mb-0">CVE Feeds References</h4>
+        <p class="text-muted mb-2"><small>{{cves|length}} CVE(s) from OTX threat feeds</small></p>
+        <div data-simplebar style="max-height: 320px;">
+          {% for cve in cves %}
+          <div class="d-flex align-items-center justify-content-between py-1 border-bottom">
+            <a href="https://nvd.nist.gov/vuln/detail/{{cve.id}}" target="_blank" class="text-danger fw-bold"><code>{{cve.id}}</code></a>
+            <small class="text-muted text-truncate ms-2" style="max-width: 200px;">{{cve.pulse|truncatechars:40}}</small>
+          </div>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
@@ -567,20 +575,6 @@ Threat Intelligence
       plotOptions: { pie: { donut: { size: '55%' } } },
     });
     iocTypeChart.render();
-    {% endif %}
-
-    // CVE References per Pulse Bar Chart
-    {% if cve_per_pulse %}
-    var cvePulseChart = new ApexCharts(document.querySelector("#cve_per_pulse_chart"), {
-      chart: { type: 'bar', height: 280 },
-      series: [{ name: 'CVEs', data: [{% for cp in cve_per_pulse %}{{cp.count}}{% if not forloop.last %},{% endif %}{% endfor %}] }],
-      xaxis: { categories: [{% for cp in cve_per_pulse %}'{{cp.pulse|truncatechars:25}}'{% if not forloop.last %},{% endif %}{% endfor %}] },
-      colors: ['#F44336'],
-      plotOptions: { bar: { borderRadius: 4, horizontal: true } },
-      dataLabels: { enabled: true },
-      tooltip: { y: { formatter: function(val) { return val + ' CVE(s)'; } } },
-    });
-    cvePulseChart.render();
     {% endif %}
 
     // Leaked Credentials by Domain Bar Chart
