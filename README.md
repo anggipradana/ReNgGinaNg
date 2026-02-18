@@ -57,21 +57,70 @@ This release delivers a **Threat Intelligence module**, **bilingual PDF reportin
 
 ### Risk Score Calculation
 
-The Threat Intelligence Risk Score (0–100) is calculated using four weighted components based on data that is **directly relevant to the domain owner**, not raw feed counts.
+The unified Risk Score (0–100) is calculated across Dashboard, Threat Intel page, and PDF reports using **five weighted components** that combine Threat Intelligence data with Vulnerability Assessment results.
 
-| Component | Weight | Source | Description |
-|-----------|--------|--------|-------------|
-| OTX Reputation | 0–25 | OTX AlienVault | Direct reputation assessment of the domain by OTX |
-| Credential Exposure | 0–35 | LeakCheck | Leaked credentials per domain ratio from dark web breaches |
-| Threat Exposure | 0–30 | OTX AlienVault | Ratio of monitored domains appearing in threat intelligence feeds |
-| Malware Association | 0–10 | OTX AlienVault | Feed-based malware references (not actual malware in your environment) |
+#### With VA Data (5 components)
 
-**Color indicators:**
+| Component | Max | Source | Description |
+|-----------|-----|--------|-------------|
+| **Vulnerability Assessment** | **40** | VA Scan | Weighted vulnerability density per domain + severity bonus. Uses `(critical×4 + high×3 + medium×2 + low×1) / domains` as base, with avg severity² as multiplier. **Largest component.** |
+| **Credential Exposure** | **30** | LeakCheck | Based on **unchecked** (unreviewed) leaked credentials per domain. Reviewing credentials actively reduces the score. |
+| Threat Exposure | 12 | OTX AlienVault | Ratio of monitored domains appearing in threat intelligence feeds |
+| OTX Reputation | 10 | OTX AlienVault | Direct reputation assessment of the domain by OTX |
+| Malware Association | 8 | OTX AlienVault | Feed-based malware references (not actual malware in your environment) |
+
+#### Without VA Data (4 components)
+
+When no vulnerability scan data is available, the weights are redistributed:
+
+| Component | Max | Source |
+|-----------|-----|--------|
+| **Credential Exposure** | **45** | LeakCheck — unchecked leaked credentials per domain |
+| Threat Exposure | 25 | OTX AlienVault |
+| OTX Reputation | 20 | OTX AlienVault |
+| Malware Association | 10 | OTX AlienVault |
+
+#### Credential Exposure Detail
+
+The leak component uses **unchecked credentials** (not yet reviewed) as the primary risk driver:
+
+- Unchecked credentials count at **full weight**
+- Credentials marked as reviewed (checked) **actively reduce** the risk score
+- This incentivizes teams to review and triage leaked credentials
+- Score decreases proportionally as more credentials are reviewed
+
+#### Vulnerability Assessment Detail
+
+The VA component uses **weighted vulnerability density per domain** to naturally combine severity and volume:
+
+```
+weighted_density = (critical×4 + high×3 + medium×2 + low×1) / total_domains
+```
+
+- **Base score** (70% of max): mapped from weighted density thresholds
+- **Severity bonus** (30% of max): `(avg_severity / 4.0)²` — high avg severity gets exponentially more impact
+
+Example scenarios (4 domains):
+
+| Scenario | Avg Severity | Vuln Score /40 |
+|----------|-------------|---------------|
+| 10 Critical + 20 High | 3.33 | 36 |
+| 3 Critical + 10 High + 2 Medium + 4 Low | 2.63 | 24 |
+| 50 Medium | 2.00 | 31 |
+| 100 Low | 1.00 | 29 |
+| 1 Critical only | 4.00 | 16 |
+
+#### Color Indicators
+
 - **Green** (0–30): Low risk
 - **Yellow** (31–70): Medium risk
 - **Red** (71–100): High risk
 
-> **Note:** Malware association is intentionally weighted low because OTX data reflects feed-based references, not actual malware found in the monitored domain's infrastructure. Credential exposure carries the highest weight as it represents real, confirmed breaches affecting the domain's users.
+> **Design decisions:**
+> - **VA is the largest component (40)** because actual vulnerability findings from scanning are the most actionable security data.
+> - **Credential Exposure is second (30)** because leaked credentials represent confirmed breaches affecting users.
+> - **Malware association is intentionally low (8)** because OTX data reflects feed-based references, not actual malware in the domain's infrastructure.
+> - The formula is **consistent** across the main Dashboard, Threat Intel page, and PDF reports — all call the same `calculate_risk_score()` function.
 
 ### New API Endpoints
 
