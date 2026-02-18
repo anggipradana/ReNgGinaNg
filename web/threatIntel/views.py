@@ -18,6 +18,7 @@ from dashboard.models import (
 	Project,
 )
 from targetApp.models import Domain
+from startScan.models import Vulnerability
 from threatIntel.models import (
 	OTXThreatData,
 	LeakCheckData,
@@ -277,6 +278,111 @@ def _credential_hash(cred):
 
 
 # ──────────────────────────────────────
+# Unified Risk Score
+# ──────────────────────────────────────
+
+def calculate_risk_score(otx_data_qs, leak_data_qs, va_counts=None):
+	"""Calculate unified risk score used across dashboard, TI page, and PDF report.
+
+	Args:
+		otx_data_qs: queryset/list of OTXThreatData objects
+		leak_data_qs: queryset/list of LeakCheckData objects
+		va_counts: dict with keys 'critical', 'high', 'medium', 'low' (vulnerability counts)
+			If None, VA component is skipped and other components scale to fill 100.
+
+	Returns:
+		dict with 'total', 'reputation', 'leak', 'malware', 'exposure', 'vulnerability',
+		'unchecked_leaks', 'checked_leaks'
+	"""
+	otx_list = list(otx_data_qs)
+	leak_list = list(leak_data_qs)
+
+	has_va = va_counts is not None and any(va_counts.get(k, 0) > 0 for k in ('critical', 'high', 'medium', 'low'))
+
+	# Weights: with VA data the total is redistributed
+	# With VA:    rep=15 + leak=30 + malware=8 + exposure=17 + vuln=30 = 100
+	# Without VA: rep=20 + leak=45 + malware=10 + exposure=25 = 100
+	if has_va:
+		REP_MAX, LEAK_MAX, MAL_MAX, EXP_MAX, VULN_MAX = 15, 30, 8, 17, 30
+	else:
+		REP_MAX, LEAK_MAX, MAL_MAX, EXP_MAX, VULN_MAX = 20, 45, 10, 25, 0
+
+	# --- Component 1: OTX Reputation ---
+	max_reputation = 0
+	for od in otx_list:
+		if od.reputation and od.reputation > max_reputation:
+			max_reputation = od.reputation
+	reputation_score = min(REP_MAX, max_reputation * (REP_MAX // 5))
+
+	# --- Component 2: Credential Exposure (unchecked = primary risk) ---
+	total_domains = len(set(od.domain_id for od in otx_list)) or 1
+	unchecked_leaks = 0
+	checked_leaks = 0
+	for ld in leak_list:
+		checked_set = set(ld.checked_credentials or [])
+		for c in (ld.leaked_credentials or []):
+			if _credential_hash(c) in checked_set:
+				checked_leaks += 1
+			else:
+				unchecked_leaks += 1
+
+	unchecked_per_domain = unchecked_leaks / total_domains
+	if unchecked_per_domain >= 30:
+		leak_score = LEAK_MAX
+	elif unchecked_per_domain >= 15:
+		leak_score = round(LEAK_MAX * 0.84)
+	elif unchecked_per_domain >= 8:
+		leak_score = round(LEAK_MAX * 0.62)
+	elif unchecked_per_domain >= 3:
+		leak_score = round(LEAK_MAX * 0.40)
+	elif unchecked_leaks > 0:
+		leak_score = round(LEAK_MAX * 0.22)
+	else:
+		leak_score = 0
+	# Checked credentials reduce risk
+	if unchecked_leaks + checked_leaks > 0:
+		review_ratio = checked_leaks / (unchecked_leaks + checked_leaks)
+		leak_score = max(0, round(leak_score * (1 - review_ratio * 0.6)))
+
+	# --- Component 3: Malware Association ---
+	total_malware = sum(od.malware_count for od in otx_list)
+	malware_score = min(MAL_MAX, total_malware * 2)
+
+	# --- Component 4: Threat Exposure ---
+	domains_with_threats = sum(1 for od in otx_list if od.pulse_count and od.pulse_count > 0)
+	if total_domains > 0:
+		exposure_ratio = domains_with_threats / total_domains
+		exposure_score = min(EXP_MAX, round(exposure_ratio * EXP_MAX))
+	else:
+		exposure_score = 0
+
+	# --- Component 5: Vulnerability Assessment ---
+	vuln_score = 0
+	if has_va:
+		critical = va_counts.get('critical', 0)
+		high = va_counts.get('high', 0)
+		medium = va_counts.get('medium', 0)
+		low = va_counts.get('low', 0)
+		# Weighted severity: critical=10, high=5, medium=2, low=0.5
+		weighted = critical * 10 + high * 5 + medium * 2 + low * 0.5
+		# Normalize: 50+ weighted points = max score
+		vuln_score = min(VULN_MAX, round((weighted / 50) * VULN_MAX))
+
+	total = min(100, reputation_score + leak_score + malware_score + exposure_score + vuln_score)
+
+	return {
+		'total': total,
+		'reputation': reputation_score,
+		'leak': leak_score,
+		'malware': malware_score,
+		'exposure': exposure_score,
+		'vulnerability': vuln_score,
+		'unchecked_leaks': unchecked_leaks,
+		'checked_leaks': checked_leaks,
+	}
+
+
+# ──────────────────────────────────────
 # Views
 # ──────────────────────────────────────
 
@@ -300,55 +406,16 @@ def index(request, slug):
 	domains_with_threats = otx_data.filter(pulse_count__gt=0).count()
 	domains_with_leaks = leak_data.filter(total_found__gt=0).count()
 
-	# Risk score — weighted by direct relevance to domain owner
-	# Component 1: OTX Reputation (0-20) — direct domain assessment
-	max_reputation = 0
-	for od in otx_data:
-		if od.reputation and od.reputation > max_reputation:
-			max_reputation = od.reputation
-	reputation_score = min(20, max_reputation * 4)
-
-	# Component 2: Credential Exposure (0-45) — unchecked leaks = primary risk
-	total_domains = domains.count() or 1
-	unchecked_leaks = 0
-	checked_leaks = 0
-	for ld in leak_data:
-		checked_set = set(ld.checked_credentials or [])
-		for c in (ld.leaked_credentials or []):
-			if _credential_hash(c) in checked_set:
-				checked_leaks += 1
-			else:
-				unchecked_leaks += 1
-	# Score based on unchecked credentials per domain (belum ditinjau = risiko utama)
-	unchecked_per_domain = unchecked_leaks / total_domains
-	if unchecked_per_domain >= 30:
-		leak_score = 45
-	elif unchecked_per_domain >= 15:
-		leak_score = 38
-	elif unchecked_per_domain >= 8:
-		leak_score = 28
-	elif unchecked_per_domain >= 3:
-		leak_score = 18
-	elif unchecked_leaks > 0:
-		leak_score = 10
-	else:
-		leak_score = 0
-	# Checked credentials reduce risk slightly (sudah ditinjau = sudah ditangani)
-	if unchecked_leaks + checked_leaks > 0:
-		review_ratio = checked_leaks / (unchecked_leaks + checked_leaks)
-		leak_score = max(0, round(leak_score * (1 - review_ratio * 0.6)))
-
-	# Component 3: Malware Association (0-10) — feed-based, not actual malware in env
-	malware_score = min(10, total_malware * 2)
-
-	# Component 4: Threat Exposure (0-25) — ratio of domains in threat feeds
-	if total_domains > 0:
-		exposure_ratio = domains_with_threats / total_domains
-		exposure_score = min(25, round(exposure_ratio * 25))
-	else:
-		exposure_score = 0
-
-	risk_score = min(100, reputation_score + leak_score + malware_score + exposure_score)
+	# Risk score — unified formula including VA data
+	vulns = Vulnerability.objects.filter(scan_history__domain__project=project)
+	va_counts = {
+		'critical': vulns.filter(severity=4).count(),
+		'high': vulns.filter(severity=3).count(),
+		'medium': vulns.filter(severity=2).count(),
+		'low': vulns.filter(severity=1).count(),
+	}
+	risk = calculate_risk_score(otx_data, leak_data, va_counts=va_counts)
+	risk_score = risk['total']
 
 	# Build OTX threat table
 	threat_table = []
@@ -977,57 +1044,16 @@ def generate_threat_report(request, slug):
 	# Severity scoring
 	severity_scores = _calculate_severity_scores(otx_data_list, leak_data_list, banking_pulses, cves)
 
-	# Risk score — same 4-component weighted formula as index page
-	# Component 1: OTX Reputation (0-20)
-	max_reputation = 0
-	for od in otx_data_list:
-		if od.reputation and od.reputation > max_reputation:
-			max_reputation = od.reputation
-	reputation_score = min(20, max_reputation * 4)
-
-	# Component 2: Credential Exposure (0-45) — unchecked leaks = primary risk
-	total_domains = len(set(od.domain_id for od in otx_data_list)) or 1
-	unchecked_leaks = 0
-	checked_leaks = 0
-	for ld in leak_data_list:
-		checked_set = set(ld.checked_credentials or [])
-		for c in (ld.leaked_credentials or []):
-			if _credential_hash(c) in checked_set:
-				checked_leaks += 1
-			else:
-				unchecked_leaks += 1
-	# Score based on unchecked credentials per domain
-	unchecked_per_domain = unchecked_leaks / total_domains
-	if unchecked_per_domain >= 30:
-		leak_score = 45
-	elif unchecked_per_domain >= 15:
-		leak_score = 38
-	elif unchecked_per_domain >= 8:
-		leak_score = 28
-	elif unchecked_per_domain >= 3:
-		leak_score = 18
-	elif unchecked_leaks > 0:
-		leak_score = 10
-	else:
-		leak_score = 0
-	# Checked credentials reduce risk slightly
-	if unchecked_leaks + checked_leaks > 0:
-		review_ratio = checked_leaks / (unchecked_leaks + checked_leaks)
-		leak_score = max(0, round(leak_score * (1 - review_ratio * 0.6)))
-
-	# Component 3: Malware Association (0-10)
-	total_malware_count = sum(od.malware_count for od in otx_data_list)
-	malware_score = min(10, total_malware_count * 2)
-
-	# Component 4: Threat Exposure (0-25)
-	domains_with_threats = sum(1 for od in otx_data_list if od.pulse_count and od.pulse_count > 0)
-	if total_domains > 0:
-		exposure_ratio = domains_with_threats / total_domains
-		exposure_score = min(25, round(exposure_ratio * 25))
-	else:
-		exposure_score = 0
-
-	overall_risk = min(100, reputation_score + leak_score + malware_score + exposure_score)
+	# Risk score — unified formula including VA data
+	vulns = Vulnerability.objects.filter(scan_history__domain__project=project)
+	va_counts = {
+		'critical': vulns.filter(severity=4).count(),
+		'high': vulns.filter(severity=3).count(),
+		'medium': vulns.filter(severity=2).count(),
+		'low': vulns.filter(severity=1).count(),
+	}
+	risk = calculate_risk_score(otx_data_list, leak_data_list, va_counts=va_counts)
+	overall_risk = risk['total']
 
 	# Build leak summary (exclude checked credentials)
 	all_leaked_creds = []

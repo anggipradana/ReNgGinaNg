@@ -24,9 +24,9 @@ from django.template.defaultfilters import slugify
 from startScan.models import *
 from targetApp.models import Domain
 from dashboard.models import *
-from ReNgGinaNg.definitions import *
+from reNgine.definitions import *
 from threatIntel.models import OTXThreatData, LeakCheckData, ThreatIntelScanStatus, ManualIndicator
-from threatIntel.views import _extract_iocs, _extract_cves, _fetch_otx_pulses
+from threatIntel.views import _extract_iocs, _extract_cves, _fetch_otx_pulses, calculate_risk_score
 from dashboard.models import OTXAlienVaultAPIKey
 
 
@@ -183,37 +183,15 @@ def index(request, slug):
     ti_total_leaks = ti_leaks.aggregate(total=Sum('total_found'))['total'] or 0
     ti_domains_with_threats = ti_otx.filter(pulse_count__gt=0).count()
     ti_domains_with_leaks = ti_leaks.filter(total_found__gt=0).count()
-    # Risk score — weighted by direct relevance to domain owner
-    ti_max_reputation = 0
-    for od in ti_otx:
-        if od.reputation and od.reputation > ti_max_reputation:
-            ti_max_reputation = od.reputation
-    ti_reputation_score = min(25, ti_max_reputation * 5)
-
-    ti_total_domains = Domain.objects.filter(project=project).count() or 1
-    ti_leaks_per_domain = ti_total_leaks / ti_total_domains
-    if ti_leaks_per_domain >= 50:
-        ti_leak_score = 35
-    elif ti_leaks_per_domain >= 20:
-        ti_leak_score = 25
-    elif ti_leaks_per_domain >= 10:
-        ti_leak_score = 18
-    elif ti_leaks_per_domain >= 5:
-        ti_leak_score = 12
-    elif ti_total_leaks > 0:
-        ti_leak_score = 5
-    else:
-        ti_leak_score = 0
-
-    ti_malware_score = min(10, ti_total_malware * 2)
-
-    if ti_total_domains > 0:
-        ti_exposure_ratio = ti_domains_with_threats / ti_total_domains
-        ti_exposure_score = min(30, round(ti_exposure_ratio * 30))
-    else:
-        ti_exposure_score = 0
-
-    ti_risk_score = min(100, ti_reputation_score + ti_leak_score + ti_malware_score + ti_exposure_score)
+    # Risk score — unified formula (TI + VA data)
+    va_counts = {
+        'critical': critical_count,
+        'high': high_count,
+        'medium': medium_count,
+        'low': low_count,
+    }
+    ti_risk = calculate_risk_score(ti_otx, ti_leaks, va_counts=va_counts)
+    ti_risk_score = ti_risk['total']
     ti_scan_status = ThreatIntelScanStatus.objects.filter(project=project).first()
     ti_has_data = ti_otx.exists() or ti_leaks.exists()
 
