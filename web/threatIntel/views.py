@@ -962,7 +962,45 @@ def generate_threat_report(request, slug):
 
 	# Severity scoring
 	severity_scores = _calculate_severity_scores(otx_data_list, leak_data_list, banking_pulses, cves)
-	overall_risk = min(100, sum(s['score'] for s in severity_scores) * 3)
+
+	# Risk score — same 4-component weighted formula as index page
+	# Component 1: OTX Reputation (0-25)
+	max_reputation = 0
+	for od in otx_data_list:
+		if od.reputation and od.reputation > max_reputation:
+			max_reputation = od.reputation
+	reputation_score = min(25, max_reputation * 5)
+
+	# Component 2: Credential Exposure (0-35)
+	total_leaks_count = sum(ld.total_found for ld in leak_data_list)
+	total_domains = len(set(od.domain_id for od in otx_data_list)) or 1
+	leaks_per_domain = total_leaks_count / total_domains
+	if leaks_per_domain >= 50:
+		leak_score = 35
+	elif leaks_per_domain >= 20:
+		leak_score = 25
+	elif leaks_per_domain >= 10:
+		leak_score = 18
+	elif leaks_per_domain >= 5:
+		leak_score = 12
+	elif total_leaks_count > 0:
+		leak_score = 5
+	else:
+		leak_score = 0
+
+	# Component 3: Malware Association (0-10)
+	total_malware_count = sum(od.malware_count for od in otx_data_list)
+	malware_score = min(10, total_malware_count * 2)
+
+	# Component 4: Threat Exposure (0-30)
+	domains_with_threats = sum(1 for od in otx_data_list if od.pulse_count and od.pulse_count > 0)
+	if total_domains > 0:
+		exposure_ratio = domains_with_threats / total_domains
+		exposure_score = min(30, round(exposure_ratio * 30))
+	else:
+		exposure_score = 0
+
+	overall_risk = min(100, reputation_score + leak_score + malware_score + exposure_score)
 
 	# Build leak summary (exclude checked credentials)
 	all_leaked_creds = []

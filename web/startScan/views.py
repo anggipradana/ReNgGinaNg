@@ -14,12 +14,12 @@ from django_celery_beat.models import (ClockedSchedule, IntervalSchedule, Period
 from rolepermissions.decorators import has_permission_decorator
 
 
-from ReNgGinaNg.celery import app
-from ReNgGinaNg.charts import *
-from ReNgGinaNg.common_func import *
-from ReNgGinaNg.definitions import ABORTED_TASK, SUCCESS_TASK
-from ReNgGinaNg.tasks import create_scan_activity, initiate_scan, run_command
-from ReNgGinaNg.llm import LLMReportEnricher
+from reNgine.celery import app
+from reNgine.charts import *
+from reNgine.common_func import *
+from reNgine.definitions import ABORTED_TASK, SUCCESS_TASK
+from reNgine.tasks import create_scan_activity, initiate_scan, run_command
+from reNgine.llm import LLMReportEnricher
 from scanEngine.models import EngineType, VulnerabilityReportSetting
 from startScan.models import *
 from targetApp.models import *
@@ -1351,6 +1351,10 @@ def create_report(request, id):
 
     if 'download' in request.GET:
         response = HttpResponse(pdf, content_type='application/octet-stream')
+        domain_name = scan.domain.name.replace('.', '_')
+        scan_date = scan.start_scan_date.strftime('%Y%m%d')
+        filename = f"va_report_{domain_name}_{report_name}_{scan_date}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
     else:
         response = HttpResponse(pdf, content_type='application/pdf')
 
