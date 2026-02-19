@@ -26,6 +26,7 @@ make test           # Run test_scan.py in Celery container
 ```
 
 **Direct container access:**
+
 ```bash
 docker compose exec web python3 manage.py <command>
 docker compose logs -f celery
@@ -33,6 +34,7 @@ docker compose logs -f web
 ```
 
 **First-time setup:**
+
 ```bash
 cp .env.example .env
 # Edit .env: set DOMAIN_NAME, passwords, API keys
@@ -43,7 +45,7 @@ make certs && make build && make up
 
 ### Service Topology
 
-```
+```text
 Browser → Nginx (443) → Django (8000) → PostgreSQL
                                       → Redis → Celery Workers (10–80 auto-scale)
                                                 → Celery Beat (scheduler)
@@ -59,16 +61,16 @@ Browser → Nginx (443) → Django (8000) → PostgreSQL
 
 The entire Django project lives in `web/`:
 
-| App | Purpose |
-|-----|---------|
-| `ReNgGinaNg/` | Project settings, root URLs, Celery config, shared utilities |
-| `dashboard/` | Main dashboard, API key management, project workspace |
-| `targetApp/` | Domain/organization/target management |
-| `scanEngine/` | Scan engine YAML configurations |
-| `startScan/` | Scan execution, vulnerability/subdomain/endpoint models and views |
-| `api/` | REST API (DRF) — `views.py` is ~94K lines |
-| `threatIntel/` | Threat Intelligence module (OTX, LeakCheck, WPScan, PDF reports) |
-| `recon_note/` | Recon notes per target |
+| App            | Purpose                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| `ReNgGinaNg/`  | Project settings, root URLs, Celery config, shared utilities      |
+| `dashboard/`   | Main dashboard, API key management, project workspace             |
+| `targetApp/`   | Domain/organization/target management                             |
+| `scanEngine/`  | Scan engine YAML configurations                                   |
+| `startScan/`   | Scan execution, vulnerability/subdomain/endpoint models and views |
+| `api/`         | REST API (DRF) — `views.py` is ~94K lines                         |
+| `threatIntel/` | Threat Intelligence module (OTX, LeakCheck, WPScan, PDF reports)  |
+| `recon_note/`  | Recon notes per target                                            |
 
 ### Key Files
 
@@ -93,6 +95,7 @@ The entire Django project lives in `web/`:
 `calculate_risk_score()` is called consistently from dashboard, TI page, and PDF reports:
 
 **With VA data (5 components, max 100)**:
+
 - Vulnerability Assessment: 40 — weighted density + severity multiplier
 - Credential Exposure: 30 — unchecked leaked credentials (LeakCheck)
 - Threat Exposure: 12 — OTX AlienVault pulse mentions
@@ -100,6 +103,7 @@ The entire Django project lives in `web/`:
 - Malware Association: 8 — feed-based malware references
 
 **Without VA data (redistributed, same total)**:
+
 - Credential Exposure: 45, Threat Exposure: 25, OTX Reputation: 20, Malware: 10
 
 ### URL Routing Pattern
@@ -109,6 +113,7 @@ Root `urls.py` routes to project-scoped URLs like `/<slug>/`. Each app registers
 ### PDF Reports
 
 WeasyPrint renders HTML templates to PDF. Templates live in:
+
 - `web/templates/report/` — Shared report base
 - `web/threatIntel/templates/` — TI-specific report templates
 
@@ -117,6 +122,7 @@ Report settings (logo, language, brand colors) are stored per-project in `Threat
 ## Environment Variables
 
 Key `.env` variables:
+
 - `DOMAIN_NAME` — FQDN for Nginx/TLS
 - `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB`
 - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`
