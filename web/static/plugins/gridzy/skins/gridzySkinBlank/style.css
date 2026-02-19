@@ -12,7 +12,7 @@
 /* all gallery captions (just create your own style) */
 .gridzySkinBlank .gridzyCaption {
   margin: 0;
-  padding: .5em;
+  padding: 0.5em;
   position: absolute;
   z-index: 1;
   bottom: 0;
@@ -22,10 +22,10 @@
   height: auto;
   color: #ffffff;
   font-weight: 200;
-  background: rgba(0, 0, 0, .9);
+  background: rgba(0, 0, 0, 0.9);
 }
 
-.gridzySkinBlank .gridzyCaption a{
+.gridzySkinBlank .gridzyCaption a {
   color: #2196f3;
 }
 
