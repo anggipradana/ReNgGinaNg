@@ -71,3 +71,6 @@ get-docker.sh
 *.key
 *.crt
 *.srl
+
+# Node
+node_modules/
