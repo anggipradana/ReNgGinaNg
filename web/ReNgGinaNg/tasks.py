@@ -2070,7 +2070,7 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	should_run_nuclei = config.get(RUN_NUCLEI, True)
 	should_run_crlfuzz = config.get(RUN_CRLFUZZ, False)
 	should_run_dalfox = config.get(RUN_DALFOX, False)
-	should_run_s3scanner = config.get(RUN_S3SCANNER, True)
+	should_run_s3scanner = config.get(RUN_S3SCANNER, False)
 
 	grouped_tasks = []
 	if should_run_nuclei:
@@ -2116,9 +2116,16 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 
+	timeout = config.get('timeout', 5) * 60  # timeout in minutes, default 5 min
+	max_wait = max(timeout, 1800)  # at least 30 minutes for vuln scans
+	elapsed = 0
 	while not job.ready():
-		# wait for all jobs to complete
+		if elapsed >= max_wait:
+			logger.warning(f'Vulnerability scan timed out after {elapsed}s. Revoking pending tasks.')
+			job.revoke(terminate=True)
+			break
 		time.sleep(5)
+		elapsed += 5
 
 	logger.info('Vulnerability scan completed...')
 
