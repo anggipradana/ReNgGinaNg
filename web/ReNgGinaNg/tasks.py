@@ -2104,7 +2104,7 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 		)
 		grouped_tasks.append(_task)
 
-	should_run_wpscan = config.get(RUN_WPSCAN, False)
+	should_run_wpscan = config.get(RUN_WPSCAN, True)
 	if should_run_wpscan:
 		_task = wpscan_scan.si(
 			urls=urls,
