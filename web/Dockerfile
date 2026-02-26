@@ -109,8 +109,8 @@ RUN printf "\
 # Update Nuclei and Nuclei-Templates
 RUN nuclei -update-templates
 
-# update chaos
-RUN chaos -update
+# update chaos (non-fatal: may hit GitHub API rate limits)
+RUN chaos -update || true
 
 # Copy requirements
 COPY ./requirements.txt /tmp/requirements.txt
