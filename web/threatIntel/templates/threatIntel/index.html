@@ -314,8 +314,11 @@ Threat Intelligence
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h4 class="header-title mb-0"><i class="fe-target me-1 text-info"></i> Manual Indicators (OTX Pulse Check)</h4>
-          <button class="btn btn-sm btn-soft-primary" onclick="showAddIndicatorModal()" {% if not has_otx_key %}disabled title="Add OTX API key first"{% endif %}>
+          <button class="btn btn-sm btn-soft-primary me-1" onclick="showAddIndicatorModal()" {% if not has_otx_key %}disabled title="Add OTX API key first"{% endif %}>
             <i class="fe-plus me-1"></i> Add Indicator
+          </button>
+          <button class="btn btn-sm btn-soft-info" onclick="showBulkAddModal()" {% if not has_otx_key %}disabled title="Add OTX API key first"{% endif %}>
+            <i class="fe-layers me-1"></i> Bulk Add
           </button>
         </div>
         <p class="text-muted">Add custom domains, subdomains, or IP addresses to check against OTX threat pulses.</p>
@@ -924,6 +927,96 @@ Threat Intelligence
           }
         })
         .catch(function(error) { Swal.close(); console.error('Error:', error); });
+      }
+    });
+  }
+
+  function showBulkAddModal() {
+    Swal.fire({
+      title: 'Bulk Add Indicators',
+      html:
+        '<div class="mb-3 text-start">' +
+        '<label class="form-label">Type</label>' +
+        '<select id="swal-bulk-type" class="form-control">' +
+        '<option value="domain">Domain</option>' +
+        '<option value="subdomain">Subdomain</option>' +
+        '<option value="ip">IP Address</option>' +
+        '</select></div>' +
+        '<div class="mb-3 text-start">' +
+        '<label class="form-label">Values <small class="text-muted">(one per line)</small></label>' +
+        '<textarea id="swal-bulk-values" class="form-control" rows="8" placeholder="example.com\ntest.com\n192.168.1.1"></textarea>' +
+        '<small class="text-muted" id="swal-bulk-count">0 indicators</small>' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: 'Add & Check All',
+      didOpen: function() {
+        var textarea = document.getElementById('swal-bulk-values');
+        var countEl = document.getElementById('swal-bulk-count');
+        textarea.addEventListener('input', function() {
+          var lines = textarea.value.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+          var unique = [...new Set(lines)];
+          countEl.textContent = unique.length + ' indicator' + (unique.length !== 1 ? 's' : '') + (unique.length !== lines.length ? ' (' + (lines.length - unique.length) + ' duplicates removed)' : '');
+        });
+      },
+      preConfirm: function() {
+        var type = document.getElementById('swal-bulk-type').value;
+        var raw = document.getElementById('swal-bulk-values').value;
+        var lines = raw.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+        var values = [...new Set(lines)];
+        if (values.length === 0) {
+          Swal.showValidationMessage('Enter at least one indicator');
+          return false;
+        }
+        return { indicator_type: type, values: values };
+      },
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        var total = result.value.values.length;
+        Swal.fire({
+          title: 'Processing ' + total + ' indicators...',
+          html: 'Checking against OTX threat intelligence.<br>This may take a while (~1s per indicator).<br><br><b>Please wait...</b>',
+          allowOutsideClick: false,
+          didOpen: function() { Swal.showLoading(); },
+        });
+        fetch("{% url 'threat_intel_bulk_add_indicators' project.slug %}", {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+          body: JSON.stringify(result.value),
+        })
+        .then(response => response.json())
+        .then(function(data) {
+          if (data.status) {
+            var summaryHtml = '<div class="text-start">';
+            summaryHtml += '<p><strong>Added:</strong> ' + data.added + '</p>';
+            if (data.skipped_duplicates > 0) summaryHtml += '<p><strong>Skipped (duplicates):</strong> ' + data.skipped_duplicates + '</p>';
+            if (data.failed > 0) summaryHtml += '<p class="text-danger"><strong>Failed:</strong> ' + data.failed + '</p>';
+            if (data.results && data.results.length > 0) {
+              summaryHtml += '<hr><div style="max-height:200px;overflow-y:auto;"><table class="table table-sm table-striped"><thead><tr><th>Value</th><th>Status</th><th>Pulses</th></tr></thead><tbody>';
+              data.results.forEach(function(r) {
+                var badge = r.status === 'added' ? 'bg-success' : r.status === 'duplicate' ? 'bg-warning text-dark' : 'bg-danger';
+                summaryHtml += '<tr><td><small>' + DOMPurify.sanitize(r.value) + '</small></td>';
+                summaryHtml += '<td><span class="badge ' + badge + '">' + DOMPurify.sanitize(r.status) + '</span></td>';
+                summaryHtml += '<td>' + (r.pulse_count !== undefined ? r.pulse_count : '-') + '</td></tr>';
+              });
+              summaryHtml += '</tbody></table></div>';
+            }
+            summaryHtml += '</div>';
+            Swal.fire({
+              title: 'Bulk Add Complete',
+              html: summaryHtml,
+              icon: 'success',
+              confirmButtonText: 'OK',
+            }).then(function() {
+              window.location.reload();
+            });
+          } else {
+            Swal.fire('Error', data.error || 'Bulk add failed.', 'error');
+          }
+        })
+        .catch(function(error) {
+          Swal.fire('Error', 'Request failed: ' + error, 'error');
+          console.error('Error:', error);
+        });
       }
     });
   }

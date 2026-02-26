@@ -32,6 +32,10 @@ urlpatterns = [
 		views.add_indicator,
 		name='threat_intel_add_indicator'),
 	path(
+		'<slug:slug>/threat-intel/bulk_add_indicators',
+		views.bulk_add_indicators,
+		name='threat_intel_bulk_add_indicators'),
+	path(
 		'<slug:slug>/threat-intel/delete_indicator/<int:id>',
 		views.delete_indicator,
 		name='threat_intel_delete_indicator'),

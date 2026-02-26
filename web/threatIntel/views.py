@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 import requests
 
 from django.db.models import Sum
@@ -856,6 +857,87 @@ def add_indicator(request, slug):
 			'pulse_count': indicator.pulse_count,
 			'fetched_at': indicator.fetched_at.isoformat() if indicator.fetched_at else None,
 		},
+	})
+
+
+def bulk_add_indicators(request, slug):
+	"""Bulk add manual indicators (domain/subdomain/IP) for OTX pulse checking."""
+	if request.method != 'POST':
+		return http.JsonResponse({'status': False, 'error': 'POST required'}, status=405)
+
+	project = get_object_or_404(Project, slug=slug)
+
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, ValueError):
+		return http.JsonResponse({'status': False, 'error': 'Invalid JSON'}, status=400)
+
+	indicator_type = body.get('indicator_type', '').strip()
+	values = body.get('values', [])
+
+	if indicator_type not in ('domain', 'subdomain', 'ip'):
+		return http.JsonResponse({'status': False, 'error': 'Invalid indicator type'}, status=400)
+	if not values or not isinstance(values, list):
+		return http.JsonResponse({'status': False, 'error': 'Values list is required'}, status=400)
+
+	otx_key_obj = OTXAlienVaultAPIKey.objects.first()
+	results = []
+	added = 0
+	skipped_duplicates = 0
+	failed = 0
+
+	for value in values:
+		value = str(value).strip()
+		if not value:
+			continue
+
+		# Check for duplicate
+		if ManualIndicator.objects.filter(project=project, indicator_type=indicator_type, value=value).exists():
+			skipped_duplicates += 1
+			results.append({'value': value, 'status': 'duplicate'})
+			continue
+
+		indicator = ManualIndicator.objects.create(
+			project=project,
+			indicator_type=indicator_type,
+			value=value,
+		)
+
+		# Fetch OTX data if key available
+		if otx_key_obj:
+			try:
+				otx_result = _fetch_otx_indicator(value, indicator_type, otx_key_obj.key)
+				indicator.otx_data = otx_result
+				indicator.pulse_count = otx_result.get('pulse_count', 0)
+				indicator.fetched_at = timezone.now()
+				indicator.save()
+				added += 1
+				results.append({
+					'value': value,
+					'status': 'added',
+					'pulse_count': indicator.pulse_count,
+				})
+			except Exception as e:
+				indicator.fetch_error = str(e)
+				indicator.save()
+				failed += 1
+				results.append({
+					'value': value,
+					'status': 'error',
+					'error': str(e),
+				})
+			# Rate limit delay between OTX API calls
+			time.sleep(1)
+		else:
+			added += 1
+			results.append({'value': value, 'status': 'added', 'pulse_count': 0})
+
+	return http.JsonResponse({
+		'status': True,
+		'added': added,
+		'skipped_duplicates': skipped_duplicates,
+		'failed': failed,
+		'results': results,
 	})
 
 
