@@ -55,6 +55,15 @@ RUN apt install -y --no-install-recommends \
     software-properties-common \
     fonts-inter
 
+# Install Cloudflare WARP (used by scheduled tasks to toggle outbound access)
+RUN curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+      | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ jammy main" \
+      > /etc/apt/sources.list.d/cloudflare-client.list && \
+    apt update -y && \
+    apt install -y cloudflare-warp && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN add-apt-repository ppa:mozillateam/ppa
 
 RUN ARCH=$(dpkg --print-architecture) \ 
