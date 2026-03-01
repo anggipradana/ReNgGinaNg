@@ -683,22 +683,26 @@
 <p>Credential exposure analysis was performed using the LeakCheck database to identify leaked credentials associated with monitored domains.</p>
 {% endif %}
 
-{% if leak_data_list %}
+{% if leak_domain_summary %}
 <h2>{% if lang == 'id' %}Ringkasan Kebocoran Per Domain{% else %}Domain Breach Summary{% endif %}</h2>
 <table>
   <thead>
     <tr>
       <th>Domain</th>
-      <th>Leaked Records</th>
-      <th>Last Checked</th>
+      <th>{% if lang == 'id' %}Total{% else %}Total{% endif %}</th>
+      <th>{% if lang == 'id' %}Open{% else %}Open{% endif %}</th>
+      <th>{% if lang == 'id' %}Reviewed{% else %}Reviewed{% endif %}</th>
+      <th>{% if lang == 'id' %}Terakhir Dicek{% else %}Last Checked{% endif %}</th>
     </tr>
   </thead>
   <tbody>
-    {% for ld in leak_data_list %}
+    {% for ls in leak_domain_summary %}
     <tr>
-      <td><strong>{{ld.domain.name}}</strong></td>
-      <td>{% if ld.total_found > 0 %}<span class="text-danger"><strong>{{ld.total_found}}</strong></span>{% else %}0{% endif %}</td>
-      <td>{{ld.fetched_at|date:"Y-m-d H:i"}}</td>
+      <td><strong>{{ls.domain_name}}</strong></td>
+      <td>{{ls.total_found}}</td>
+      <td>{% if ls.unchecked > 0 %}<span class="text-danger"><strong>{{ls.unchecked}}</strong></span>{% else %}0{% endif %}</td>
+      <td>{{ls.checked}}</td>
+      <td>{{ls.fetched_at|date:"Y-m-d H:i"}}</td>
     </tr>
     {% endfor %}
   </tbody>

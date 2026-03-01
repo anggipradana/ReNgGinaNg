@@ -436,6 +436,17 @@ def index(request, slug):
 	domains_with_threats = otx_data.filter(pulse_count__gt=0).count()
 	domains_with_leaks = leak_data.filter(total_found__gt=0).count()
 
+	# Count checked vs unchecked leaks
+	unchecked_leaks = 0
+	checked_leaks = 0
+	for ld in leak_data:
+		checked_set = set(ld.checked_credentials or [])
+		for c in (ld.leaked_credentials or []):
+			if _credential_hash(c) in checked_set:
+				checked_leaks += 1
+			else:
+				unchecked_leaks += 1
+
 	# Risk score — unified formula including VA data
 	vulns = Vulnerability.objects.filter(scan_history__domain__project=project)
 	va_counts = {
@@ -540,6 +551,8 @@ def index(request, slug):
 		'total_pulses': total_pulses,
 		'total_malware': total_malware,
 		'total_leaks': total_leaks,
+		'unchecked_leaks': unchecked_leaks,
+		'checked_leaks': checked_leaks,
 		'domains_with_threats': domains_with_threats,
 		'domains_with_leaks': domains_with_leaks,
 		'risk_score': risk_score,
@@ -1166,15 +1179,27 @@ def generate_threat_report(request, slug):
 	risk = calculate_risk_score(otx_data_list, leak_data_list, va_counts=va_counts)
 	overall_risk = risk['total']
 
-	# Build leak summary (exclude checked credentials)
+	# Build leak summary (exclude checked credentials) and per-domain unchecked counts
 	all_leaked_creds = []
+	leak_domain_summary = []
 	for ld in leak_data_list:
 		checked_set = set(ld.checked_credentials or [])
+		domain_unchecked = 0
+		domain_checked = 0
 		for c in (ld.leaked_credentials or []):
 			if _credential_hash(c) in checked_set:
+				domain_checked += 1
 				continue
+			domain_unchecked += 1
 			c['domain'] = ld.domain.name
 			all_leaked_creds.append(c)
+		leak_domain_summary.append({
+			'domain_name': ld.domain.name,
+			'total_found': ld.total_found,
+			'unchecked': domain_unchecked,
+			'checked': domain_checked,
+			'fetched_at': ld.fetched_at,
+		})
 
 	# Summary stats
 	total_pulses = sum(od.pulse_count for od in otx_data_list)
@@ -1217,6 +1242,7 @@ def generate_threat_report(request, slug):
 		'all_leaked_creds': all_leaked_creds[:200],
 		'otx_data_list': otx_data_list,
 		'leak_data_list': leak_data_list,
+		'leak_domain_summary': leak_domain_summary,
 		'manual_indicators': manual_indicators,
 	}
 

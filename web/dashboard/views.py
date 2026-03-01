@@ -25,7 +25,7 @@ from targetApp.models import Domain
 from dashboard.models import *
 from ReNgGinaNg.definitions import *
 from threatIntel.models import OTXThreatData, LeakCheckData, ThreatIntelScanStatus, ManualIndicator
-from threatIntel.views import _extract_iocs, _extract_cves, _fetch_otx_pulses, calculate_risk_score
+from threatIntel.views import _extract_iocs, _extract_cves, _fetch_otx_pulses, _credential_hash, calculate_risk_score
 from dashboard.models import OTXAlienVaultAPIKey
 
 
@@ -180,6 +180,15 @@ def index(request, slug):
     ti_total_pulses = ti_otx.aggregate(total=Sum('pulse_count'))['total'] or 0
     ti_total_malware = ti_otx.aggregate(total=Sum('malware_count'))['total'] or 0
     ti_total_leaks = ti_leaks.aggregate(total=Sum('total_found'))['total'] or 0
+    ti_unchecked_leaks = 0
+    ti_checked_leaks = 0
+    for ld in ti_leaks:
+        checked_set = set(ld.checked_credentials or [])
+        for c in (ld.leaked_credentials or []):
+            if _credential_hash(c) in checked_set:
+                ti_checked_leaks += 1
+            else:
+                ti_unchecked_leaks += 1
     ti_domains_with_threats = ti_otx.filter(pulse_count__gt=0).count()
     ti_domains_with_leaks = ti_leaks.filter(total_found__gt=0).count()
     # Risk score — unified formula (TI + VA data)
@@ -197,6 +206,8 @@ def index(request, slug):
     context['ti_total_pulses'] = ti_total_pulses
     context['ti_total_malware'] = ti_total_malware
     context['ti_total_leaks'] = ti_total_leaks
+    context['ti_unchecked_leaks'] = ti_unchecked_leaks
+    context['ti_checked_leaks'] = ti_checked_leaks
     context['ti_domains_with_threats'] = ti_domains_with_threats
     context['ti_domains_with_leaks'] = ti_domains_with_leaks
     context['ti_risk_score'] = ti_risk_score
