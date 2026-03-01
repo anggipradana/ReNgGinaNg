@@ -52,7 +52,8 @@ RUN apt install -y --no-install-recommends \
     wget \
     curl \
     python3-netaddr \
-    software-properties-common
+    software-properties-common \
+    fonts-inter
 
 RUN add-apt-repository ppa:mozillateam/ppa
 
