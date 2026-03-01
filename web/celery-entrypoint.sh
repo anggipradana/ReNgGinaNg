@@ -211,53 +211,24 @@ generate_worker_command() {
     fi
 }
 
-echo "Starting Celery Workers..."
+echo "Starting Celery Workers (consolidated for low-memory systems)..."
 
 commands=""
 
-# Main scan worker
-if [ "$DEBUG" == "1" ]; then
-    commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/ReNgGinaNg/\" -- celery -A ReNgGinaNg.tasks worker --loglevel=$loglevel --optimization=fair --autoscale=$MAX_CONCURRENCY,$MIN_CONCURRENCY -Q main_scan_queue &"$'\n'
-else
-    commands+="celery -A ReNgGinaNg.tasks worker --loglevel=$loglevel --optimization=fair --autoscale=$MAX_CONCURRENCY,$MIN_CONCURRENCY -Q main_scan_queue &"$'\n'
-fi
+# Worker 1: Main scan worker
+commands+="celery -A ReNgGinaNg.tasks worker --pool=gevent --optimization=fair --autoscale=$MAX_CONCURRENCY,$MIN_CONCURRENCY --loglevel=$loglevel -Q main_scan_queue -n main_scan_worker &"$'\n'
 
-# API shared task worker
-if [ "$DEBUG" == "1" ]; then
-    commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/api/\" -- celery -A api.shared_api_tasks worker --pool=gevent --optimization=fair --concurrency=30 --loglevel=$loglevel -Q api_queue -n api_worker &"$'\n'
-else
-    commands+="celery -A api.shared_api_tasks worker --pool=gevent --concurrency=30 --optimization=fair --loglevel=$loglevel -Q api_queue -n api_worker &"$'\n'
-fi
+# Worker 2: API worker
+commands+="celery -A api.shared_api_tasks worker --pool=gevent --optimization=fair --autoscale=10,1 --loglevel=$loglevel -Q api_queue -n api_worker &"$'\n'
 
-# worker format: "queue_name:concurrency:worker_name"
-workers=(
-    "initiate_scan_queue:30:initiate_scan_worker"
-    "subscan_queue:30:subscan_worker"
-    "report_queue:20:report_worker"
-    "send_notif_queue:10:send_notif_worker"
-    "send_task_notif_queue:10:send_task_notif_worker"
-    "send_file_to_discord_queue:5:send_file_to_discord_worker"
-    "send_hackerone_report_queue:5:send_hackerone_report_worker"
-    "parse_nmap_results_queue:10:parse_nmap_results_worker"
-    "geo_localize_queue:20:geo_localize_worker"
-    "query_whois_queue:10:query_whois_worker"
-    "remove_duplicate_endpoints_queue:30:remove_duplicate_endpoints_worker"
-    "run_command_queue:50:run_command_worker"
-    "query_reverse_whois_queue:10:query_reverse_whois_worker"
-    "query_ip_history_queue:10:query_ip_history_worker"
-    "llm_queue:30:llm_worker"
-    "dorking_queue:10:dorking_worker"
-    "osint_discovery_queue:10:osint_discovery_worker"
-    "h8mail_queue:10:h8mail_worker"
-    "theHarvester_queue:10:theHarvester_worker"
-    "send_scan_notif_queue:10:send_scan_notif_worker"
-)
+# Worker 3: Scan pipeline (initiate, subscan, commands, parsing)
+commands+="celery -A ReNgGinaNg.tasks worker --pool=gevent --optimization=fair --autoscale=10,1 --loglevel=$loglevel -Q initiate_scan_queue,subscan_queue,run_command_queue,parse_nmap_results_queue,remove_duplicate_endpoints_queue -n scan_pipeline_worker &"$'\n'
 
-for worker in "${workers[@]}"; do
-    IFS=':' read -r queue concurrency worker_name <<< "$worker"
-    commands+="$(generate_worker_command "$queue" "$concurrency" "$worker_name")"$'\n'
-done
-commands="${commands%&}"
+# Worker 4: OSINT & recon (whois, geo, dorking, harvester, h8mail, osint)
+commands+="celery -A ReNgGinaNg.tasks worker --pool=gevent --optimization=fair --autoscale=10,1 --loglevel=$loglevel -Q geo_localize_queue,query_whois_queue,query_reverse_whois_queue,query_ip_history_queue,dorking_queue,osint_discovery_queue,h8mail_queue,theHarvester_queue -n osint_recon_worker &"$'\n'
+
+# Worker 5: Reports, notifications, LLM
+commands+="celery -A ReNgGinaNg.tasks worker --pool=gevent --optimization=fair --autoscale=10,1 --loglevel=$loglevel -Q report_queue,send_notif_queue,send_task_notif_queue,send_scan_notif_queue,send_file_to_discord_queue,send_hackerone_report_queue,llm_queue -n report_notif_worker"$'\n'
 
 eval "$commands"
 

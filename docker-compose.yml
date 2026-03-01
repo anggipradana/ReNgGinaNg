@@ -141,15 +141,16 @@ services:
       - scan_results:/usr/src/scan_results
     networks:
       - ReNgGinaNg_network
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - ReNgGinaNg_network
+  # Ollama disabled - using OpenAI API instead. Uncomment to re-enable.
+  # ollama:
+  #   image: ollama/ollama
+  #   container_name: ollama
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   networks:
+  #     - ReNgGinaNg_network
 
 networks:
   ReNgGinaNg_network:
