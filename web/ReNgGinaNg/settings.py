@@ -207,6 +207,19 @@ CELERY_IGNORE_RESULTS = False
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 CELERY_TRACK_STARTED = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'refresh-threat-intel-daily': {
+        'task': 'scheduled_threat_intel_refresh',
+        'schedule': crontab(hour=3, minute=0),  # Daily at 3:00 AM
+    },
+    'update-nuclei-templates-weekly': {
+        'task': 'scheduled_nuclei_update',
+        'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday at 2:00 AM
+    },
+}
 '''
 ROLES and PERMISSIONS
 '''

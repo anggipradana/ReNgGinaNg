@@ -5086,3 +5086,138 @@ def llm_vulnerability_description(vulnerability_id):
 			vuln.save()
 
 	return response
+
+
+#-----------------------------------------#
+# WARP helpers (Cloudflare WARP toggle)   #
+#-----------------------------------------#
+
+def _warp_connect():
+	"""Enable Cloudflare WARP for outbound connectivity."""
+	try:
+		result = subprocess.run(
+			['warp-cli', '--accept-tos', 'connect'],
+			capture_output=True, text=True, timeout=30,
+		)
+		logger.info(f'WARP connect: {result.stdout.strip()}')
+		if result.returncode != 0:
+			logger.warning(f'WARP connect stderr: {result.stderr.strip()}')
+		# Give WARP a moment to establish the tunnel
+		time.sleep(3)
+	except Exception as e:
+		logger.error(f'WARP connect failed: {e}')
+
+
+def _warp_disconnect():
+	"""Disable Cloudflare WARP after outbound tasks are done."""
+	try:
+		result = subprocess.run(
+			['warp-cli', '--accept-tos', 'disconnect'],
+			capture_output=True, text=True, timeout=30,
+		)
+		logger.info(f'WARP disconnect: {result.stdout.strip()}')
+		if result.returncode != 0:
+			logger.warning(f'WARP disconnect stderr: {result.stderr.strip()}')
+	except Exception as e:
+		logger.error(f'WARP disconnect failed: {e}')
+
+
+#-----------------------------------------#
+# Scheduled tasks                         #
+#-----------------------------------------#
+
+@app.task(name='scheduled_threat_intel_refresh', bind=False, queue='report_queue')
+def scheduled_threat_intel_refresh():
+	"""Daily scheduled refresh of OTX + LeakCheck data for all projects/domains.
+
+	Turns on Cloudflare WARP before fetching (server blocks external access)
+	and turns it off when done.
+	"""
+	from dashboard.models import OTXAlienVaultAPIKey, LeakCheckAPIKey, Project
+	from targetApp.models import Domain
+	from threatIntel.models import OTXThreatData, LeakCheckData
+	from threatIntel.views import _fetch_otx_data, _fetch_leakcheck_data, _fetch_otx_pulses
+
+	otx_key_obj = OTXAlienVaultAPIKey.objects.first()
+	leakcheck_key_obj = LeakCheckAPIKey.objects.first()
+
+	if not otx_key_obj and not leakcheck_key_obj:
+		logger.info('scheduled_threat_intel_refresh: no API keys configured, skipping.')
+		return
+
+	otx_key = otx_key_obj.key if otx_key_obj else None
+	leakcheck_key = leakcheck_key_obj.key if leakcheck_key_obj else None
+
+	_warp_connect()
+	try:
+		projects = Project.objects.all()
+		for project in projects:
+			domains = Domain.objects.filter(project=project)
+			for domain in domains:
+				# OTX per-domain
+				if otx_key:
+					try:
+						otx_result = _fetch_otx_data(domain.name, otx_key)
+						OTXThreatData.objects.update_or_create(
+							domain=domain, project=project,
+							defaults=otx_result,
+						)
+						logger.info(f'TI refresh: OTX OK for {domain.name}')
+					except Exception as e:
+						logger.error(f'TI refresh: OTX error for {domain.name}: {e}')
+						OTXThreatData.objects.update_or_create(
+							domain=domain, project=project,
+							defaults={'fetch_error': str(e)},
+						)
+
+				# LeakCheck per-domain
+				if leakcheck_key:
+					try:
+						leak_result = _fetch_leakcheck_data(domain.name, leakcheck_key)
+						LeakCheckData.objects.update_or_create(
+							domain=domain, project=project,
+							defaults=leak_result,
+						)
+						logger.info(f'TI refresh: LeakCheck OK for {domain.name}')
+					except Exception as e:
+						logger.error(f'TI refresh: LeakCheck error for {domain.name}: {e}')
+						LeakCheckData.objects.update_or_create(
+							domain=domain, project=project,
+							defaults={'fetch_error': str(e)},
+						)
+
+		# Global OTX subscribed pulses (logged only, not stored per-domain)
+		if otx_key:
+			try:
+				pulses = _fetch_otx_pulses(otx_key, limit=20)
+				logger.info(f'TI refresh: fetched {len(pulses)} subscribed pulses')
+			except Exception as e:
+				logger.error(f'TI refresh: OTX pulses error: {e}')
+	finally:
+		_warp_disconnect()
+
+	logger.info('scheduled_threat_intel_refresh completed.')
+
+
+@app.task(name='scheduled_nuclei_update', bind=False, queue='run_command_queue')
+def scheduled_nuclei_update():
+	"""Weekly update of Nuclei templates.
+
+	Turns on Cloudflare WARP before updating (server blocks external access)
+	and turns it off when done.
+	"""
+	_warp_connect()
+	try:
+		result = subprocess.run(
+			['nuclei', '-update-templates'],
+			capture_output=True, text=True, timeout=300,
+		)
+		logger.info(f'Nuclei template update stdout: {result.stdout.strip()}')
+		if result.returncode != 0:
+			logger.error(f'Nuclei template update failed: {result.stderr.strip()}')
+		else:
+			logger.info('scheduled_nuclei_update completed successfully.')
+	except Exception as e:
+		logger.error(f'scheduled_nuclei_update error: {e}')
+	finally:
+		_warp_disconnect()
