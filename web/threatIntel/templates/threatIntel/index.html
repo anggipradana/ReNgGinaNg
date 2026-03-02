@@ -364,10 +364,6 @@ Threat Intelligence
                   </button>
                 </td>
               </tr>
-              {% empty %}
-              <tr>
-                <td colspan="5" class="text-center text-muted">No manual indicators added yet.</td>
-              </tr>
               {% endfor %}
             </tbody>
           </table>
@@ -543,6 +539,11 @@ Threat Intelligence
       order: [[1, 'desc']],
       pageLength: 5,
       language: { emptyTable: "No domains found." }
+    });
+    $('#indicator-table').DataTable({
+      order: [[3, 'desc']],
+      pageLength: 5,
+      language: { emptyTable: "No manual indicators added yet." }
     });
     {% if ioc_flat %}
     $('#ioc-table').DataTable({

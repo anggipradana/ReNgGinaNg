@@ -2898,16 +2898,21 @@ def wpscan_scan(self, urls=[], ctx={}, description=None):
 		).values_list('subdomain', flat=True).distinct()
 	)
 
-	# Layer 3: Active probe — check remaining subdomains for WordPress indicators
-	# This catches cases where CDN/WAF hides tech and crawlers didn't find wp- URLs
+	# Layer 3: Active probe — only on subdomains with live HTTP endpoints
+	# Catches cases where CDN/WAF hides tech fingerprints and crawlers missed wp- URLs
 	if not wp_subdomain_ids:
-		logger.info('No WordPress detected via tech/URL, running active probe on all subdomains')
-		all_subdomains = Subdomain.objects.filter(scan_history=self.scan)
-		for sub in all_subdomains:
-			probe_url = sub.http_url or f'https://{sub.name}'
-			if _is_wordpress(probe_url):
-				wp_subdomain_ids.add(sub.id)
-				logger.info(f'Active probe detected WordPress on {sub.name}')
+		live_subdomains = Subdomain.objects.filter(
+			scan_history=self.scan,
+			http_url__isnull=False
+		).exclude(http_url='')
+		if live_subdomains.exists():
+			logger.info(f'No WordPress via tech/URL, probing {live_subdomains.count()} live subdomains')
+			for sub in live_subdomains:
+				if _is_wordpress(sub.http_url):
+					wp_subdomain_ids.add(sub.id)
+					logger.info(f'Active probe detected WordPress on {sub.name}')
+		else:
+			logger.info('No live HTTP subdomains to probe for WordPress')
 
 	wp_subdomains = Subdomain.objects.filter(id__in=wp_subdomain_ids)
 
@@ -3911,12 +3916,11 @@ def parse_crlfuzz_result(url):
 
 
 def _is_wordpress(url):
-	"""Actively probe a URL to detect WordPress.
+	"""Actively probe a URL to detect WordPress via wp-login.php.
 
-	Checks multiple WordPress-specific indicators:
-	- /wp-json/ REST API endpoint (most reliable, hard to hide)
-	- /wp-login.php login page
-	- 'wp-' references in HTML response body or headers
+	Uses a single focused check: GET /wp-login.php and verify the response
+	contains WordPress-specific login form markers. This is the most reliable
+	single indicator with near-zero false positives.
 
 	Args:
 		url (str): Base URL to probe.
@@ -3925,38 +3929,19 @@ def _is_wordpress(url):
 		bool: True if WordPress is detected.
 	"""
 	import requests as http_requests
-	req_kwargs = dict(timeout=10, allow_redirects=True, verify=False,
-		headers={'User-Agent': 'Mozilla/5.0'})
 	base = url.rstrip('/')
 	try:
-		# Probe 1: /wp-json/ — must return JSON with WordPress REST API namespaces
-		try:
-			resp = http_requests.get(f'{base}/wp-json/', **req_kwargs)
-			if resp.status_code == 200:
-				body = resp.text.lower()
-				if 'wp/v2' in body or '"namespaces"' in body:
-					return True
-		except Exception:
-			pass
-
-		# Probe 2: /wp-login.php — must contain WordPress login form
-		try:
-			resp = http_requests.get(f'{base}/wp-login.php', **req_kwargs)
-			if resp.status_code == 200:
-				body = resp.text.lower()
-				if 'wp-login' in body or 'wordpress' in body:
-					return True
-		except Exception:
-			pass
-
-		# Probe 3: Check homepage HTML for WordPress signatures
-		resp = http_requests.get(base, **req_kwargs)
+		resp = http_requests.get(
+			f'{base}/wp-login.php',
+			timeout=8,
+			allow_redirects=True,
+			verify=False,
+			headers={'User-Agent': 'Mozilla/5.0'})
 		if resp.status_code == 200:
 			body = resp.text.lower()
-			wp_signatures = ['wp-content/', 'wp-includes/', '/wp-json',
-				'/xmlrpc.php', 'wp-emoji']
-			match_count = sum(1 for sig in wp_signatures if sig in body)
-			if match_count >= 2:
+			# Require at least 2 WordPress-specific markers to avoid FP
+			wp_markers = ['wp-login', 'wordpress', 'wp-submit', 'login_error', 'wp-core']
+			if sum(1 for m in wp_markers if m in body) >= 2:
 				return True
 	except Exception:
 		pass
