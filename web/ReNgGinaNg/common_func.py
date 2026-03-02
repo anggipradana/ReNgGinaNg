@@ -473,7 +473,7 @@ def sanitize_url(http_url):
 	if url.netloc.endswith(':80'):
 		url = url._replace(netloc=url.netloc.replace(':80', ''))
 	elif url.netloc.endswith(':443'):
-		url = url._replace(scheme=url.scheme.replace('http', 'https'))
+		url = url._replace(scheme='https')
 		url = url._replace(netloc=url.netloc.replace(':443', ''))
 	return url.geturl().rstrip('/')
 
