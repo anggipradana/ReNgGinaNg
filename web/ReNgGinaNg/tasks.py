@@ -4988,6 +4988,8 @@ def save_imported_subdomains(subdomains, ctx={}):
 		for name in subdomains:
 			subdomain_name = name.strip()
 			subdomain, _ = save_subdomain(subdomain_name, ctx=ctx)
+			if not subdomain:
+				continue
 			subdomain.is_imported_subdomain = True
 			subdomain.save()
 			output_file.write(f'{subdomain}\n')
