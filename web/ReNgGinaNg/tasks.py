@@ -212,6 +212,14 @@ def initiate_scan(
 		scan.celery_ids.append(task.id)
 		scan.save()
 
+		# Schedule a backup report call in case the chord callback silently
+		# fails (known Celery + Redis reliability issue). The report task is
+		# idempotent so running it twice is harmless.
+		report.apply_async(
+			kwargs={'ctx': ctx},
+			countdown=1800,  # 30 minutes
+			queue='report_queue')
+
 		return {
 			'success': True,
 			'task_id': task.id
@@ -352,6 +360,8 @@ def report(ctx={}, description=None):
 	Mark ScanHistory or SubScan object as completed and update with final
 	status, log run details and send notification.
 
+	This task is idempotent: if the scan is already completed it returns early.
+
 	Args:
 		description (str, optional): Task description shown in UI.
 	"""
@@ -361,6 +371,15 @@ def report(ctx={}, description=None):
 	engine_id = ctx.get('engine_id')
 	scan = ScanHistory.objects.filter(pk=scan_id).first()
 	subscan = SubScan.objects.filter(pk=subscan_id).first()
+
+	if not scan:
+		logger.error(f'report: scan {scan_id} not found')
+		return
+
+	# Idempotent guard: skip if scan already finished
+	if scan.scan_status != RUNNING_TASK:
+		logger.info(f'report: scan {scan_id} already has status {scan.scan_status}, skipping.')
+		return
 
 	# Get failed tasks
 	tasks = ScanActivity.objects.filter(scan_of=scan).all()
@@ -373,15 +392,18 @@ def report(ctx={}, description=None):
 	status = SUCCESS_TASK if failed_count == 0 else FAILED_TASK
 	status_h = 'SUCCESS' if failed_count == 0 else 'FAILED'
 
-	# Update scan / subscan status
+	# Update scan / subscan status using .update() to avoid overwriting
+	# concurrent changes from other tasks that may call scan.save()
 	if subscan:
-		subscan.stop_scan_date = timezone.now()
-		subscan.status = status
-		subscan.save()
+		SubScan.objects.filter(pk=subscan_id).update(
+			stop_scan_date=timezone.now(),
+			status=status)
 	else:
-		scan.scan_status = status
-	scan.stop_scan_date = timezone.now()
-	scan.save()
+		ScanHistory.objects.filter(pk=scan_id).update(
+			scan_status=status,
+			stop_scan_date=timezone.now())
+
+	logger.info(f'report: scan {scan_id} marked as {status_h}')
 
 	# Send scan status notif
 	send_scan_notif.delay(
@@ -4963,7 +4985,10 @@ def save_ip_address(ip_address, subdomain=None, subscan=None, **kwargs):
 
 
 def save_imported_subdomains(subdomains, ctx={}):
-	"""Take a list of subdomains imported and write them to from_imported.txt.
+	"""Take a list of subdomains imported and save them to DB + subdomains_imported.txt.
+
+	The filename uses the subdomains_*.txt pattern so that subdomain_discovery's
+	`cat subdomains_*.txt` glob picks them up for http_crawl and tech detection.
 
 	Args:
 		subdomains (list): List of subdomain names.
@@ -4984,7 +5009,7 @@ def save_imported_subdomains(subdomains, ctx={}):
 		return
 
 	logger.warning(f'Found {len(subdomains)} imported subdomains.')
-	with open(f'{results_dir}/from_imported.txt', 'w+') as output_file:
+	with open(f'{results_dir}/subdomains_imported.txt', 'w+') as output_file:
 		for name in subdomains:
 			subdomain_name = name.strip()
 			subdomain, _ = save_subdomain(subdomain_name, ctx=ctx)
