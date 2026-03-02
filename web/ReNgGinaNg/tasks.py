@@ -2145,11 +2145,12 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 
-	timeout = config.get('timeout', 5) * 60  # timeout in minutes, default 5 min
-	max_wait = max(timeout, 1800)  # at least 30 minutes for vuln scans
+	# timeout in minutes from engine config; 0 = no timeout (wait until done)
+	timeout_minutes = config.get('timeout', 0)
+	max_wait = timeout_minutes * 60 if timeout_minutes > 0 else 0
 	elapsed = 0
 	while not job.ready():
-		if elapsed >= max_wait:
+		if max_wait and elapsed >= max_wait:
 			logger.warning(f'Vulnerability scan timed out after {elapsed}s. Revoking pending tasks.')
 			job.revoke(terminate=True)
 			break
