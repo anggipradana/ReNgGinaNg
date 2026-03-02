@@ -604,12 +604,19 @@ def subdomain_discovery(
 		if valid_url:
 			subdomain_name = urlparse(subdomain_name).netloc
 
-		if subdomain_scope_checker.is_out_of_scope(subdomain_name):
+		# Check if this is a user-imported subdomain (bypass scope check)
+		is_imported = Subdomain.objects.filter(
+			scan_history__id=self.scan_id,
+			name=subdomain_name,
+			is_imported_subdomain=True
+		).exists()
+
+		if not is_imported and subdomain_scope_checker.is_out_of_scope(subdomain_name):
 			logger.error(f'Subdomain {subdomain_name} is out of scope. Skipping.')
 			continue
 
 		# Add subdomain
-		subdomain, _ = save_subdomain(subdomain_name, ctx=ctx)
+		subdomain, _ = save_subdomain(subdomain_name, ctx=ctx, skip_scope_check=is_imported)
 		if subdomain:
 			subdomain_count += 1
 			subdomains.append(subdomain)
@@ -4875,12 +4882,13 @@ def save_endpoint(
 	return endpoint, created
 
 
-def save_subdomain(subdomain_name, ctx={}):
+def save_subdomain(subdomain_name, ctx={}, skip_scope_check=False):
 	"""Get or create Subdomain object.
 
 	Args:
 		subdomain_name (str): Subdomain name.
 		scan_history (startScan.models.ScanHistory): ScanHistory object.
+		skip_scope_check (bool): Skip out-of-scope check (for imported subdomains).
 
 	Returns:
 		tuple: (startScan.models.Subdomain, created) where `created` is a
@@ -4899,7 +4907,7 @@ def save_subdomain(subdomain_name, ctx={}):
 		logger.error(f'{subdomain_name} is not an invalid domain. Skipping.')
 		return None, False
 
-	if subdomain_checker.is_out_of_scope(subdomain_name):
+	if not skip_scope_check and subdomain_checker.is_out_of_scope(subdomain_name):
 		logger.error(f'{subdomain_name} is out-of-scope. Skipping.')
 		return None, False
 
@@ -5012,7 +5020,7 @@ def save_imported_subdomains(subdomains, ctx={}):
 	with open(f'{results_dir}/subdomains_imported.txt', 'w+') as output_file:
 		for name in subdomains:
 			subdomain_name = name.strip()
-			subdomain, _ = save_subdomain(subdomain_name, ctx=ctx)
+			subdomain, _ = save_subdomain(subdomain_name, ctx=ctx, skip_scope_check=True)
 			if not subdomain:
 				continue
 			subdomain.is_imported_subdomain = True
