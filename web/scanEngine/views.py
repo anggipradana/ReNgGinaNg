@@ -15,6 +15,7 @@ from ReNgGinaNg.common_func import *
 from ReNgGinaNg.tasks import (run_command, send_discord_message, send_slack_message, send_lark_message, send_telegram_message, send_google_chat_message)
 from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
+from dashboard.models import Project
 from scanEngine.models import *
 
 
@@ -417,15 +418,15 @@ def hackerone_settings(request, slug):
 @has_permission_decorator(PERM_MODIFY_SCAN_REPORT, redirect_url=FOUR_OH_FOUR_URL)
 def report_settings(request, slug):
     context = {}
+    project = get_object_or_404(Project, slug=slug)
     form = ReportForm()
     context['form'] = form
 
     primary_color = '#FFB74D'
     secondary_color = '#212121'
 
-    report = None
-    if VulnerabilityReportSetting.objects.all().exists():
-        report = VulnerabilityReportSetting.objects.all()[0]
+    report = VulnerabilityReportSetting.objects.filter(project=project).first()
+    if report:
         primary_color = report.primary_color
         secondary_color = report.secondary_color
         form.set_value(report)
@@ -439,7 +440,9 @@ def report_settings(request, slug):
             form = ReportForm(request.POST, request.FILES)
 
         if form.is_valid():
-            form.save()
+            obj = form.save(commit=False)
+            obj.project = project
+            obj.save()
             messages.add_message(
                 request,
                 messages.INFO,
@@ -460,7 +463,8 @@ def report_settings(request, slug):
 @has_permission_decorator(PERM_MODIFY_SCAN_REPORT, redirect_url=FOUR_OH_FOUR_URL)
 def delete_logo(request, slug):
     if request.method == "POST":
-        report = VulnerabilityReportSetting.objects.first()
+        project = get_object_or_404(Project, slug=slug)
+        report = VulnerabilityReportSetting.objects.filter(project=project).first()
         if report and report.company_logo:
             report.company_logo.delete(save=True)
             messages.add_message(request, messages.INFO, 'Logo deleted successfully.')

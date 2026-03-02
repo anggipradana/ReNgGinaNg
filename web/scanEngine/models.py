@@ -1,5 +1,6 @@
 import yaml
 from django.db import models
+from dashboard.models import Project
 
 
 class hybrid_property:
@@ -111,6 +112,7 @@ class Hackerone(models.Model):
 
 class VulnerabilityReportSetting(models.Model):
     id = models.AutoField(primary_key=True)
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, null=True, blank=True)
     primary_color = models.CharField(max_length=10, null=True, blank=True, default='#FFB74D')
     secondary_color = models.CharField(max_length=10, null=True, blank=True, default='#212121')
     company_name = models.CharField(max_length=100, null=True, blank=True)

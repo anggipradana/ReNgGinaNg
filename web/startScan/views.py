@@ -1231,7 +1231,7 @@ def create_report(request, id):
 
     # Determine report language
     report_language = request.GET.get('report_language', 'en')
-    vuln_report_settings = VulnerabilityReportSetting.objects.first()
+    vuln_report_settings = VulnerabilityReportSetting.objects.filter(project=scan.domain.project).first()
     if vuln_report_settings and not request.GET.get('report_language'):
         report_language = vuln_report_settings.report_language or 'en'
 
@@ -1267,9 +1267,9 @@ def create_report(request, id):
     }
 
     # Get report related config
-    vuln_report_query = VulnerabilityReportSetting.objects.all()
+    vuln_report_query = VulnerabilityReportSetting.objects.filter(project=scan.domain.project)
     if vuln_report_query.exists():
-        report = vuln_report_query[0]
+        report = vuln_report_query.first()
         data['company_name'] = report.company_name
         data['company_address'] = report.company_address
         data['company_email'] = report.company_email

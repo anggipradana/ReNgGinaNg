@@ -502,7 +502,7 @@ Thank you'''
 class ReportForm(forms.ModelForm):
     class Meta:
         model = VulnerabilityReportSetting
-        fields = '__all__'
+        exclude = ['project']
 
     company_name = forms.CharField(
         required=False,
