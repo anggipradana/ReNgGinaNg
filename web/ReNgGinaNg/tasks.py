@@ -2145,9 +2145,10 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 
-	# timeout in minutes from engine config; 0 = no timeout (wait until done)
-	timeout_minutes = config.get('timeout', 0)
-	max_wait = timeout_minutes * 60 if timeout_minutes > 0 else 0
+	# scan_timeout (minutes) controls overall vuln scan wait; 0 = no limit.
+	# NOTE: config['timeout'] is the per-request HTTP timeout for nuclei — do NOT reuse it here.
+	scan_timeout_minutes = config.get('scan_timeout', 0)
+	max_wait = scan_timeout_minutes * 60 if scan_timeout_minutes > 0 else 0
 	elapsed = 0
 	while not job.ready():
 		if max_wait and elapsed >= max_wait:
@@ -2193,7 +2194,14 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 		http_url = sanitize_url(line.get('matched-at'))
 		subdomain_name = get_subdomain_from_url(http_url)
 
-		# TODO: this should be get only
+		# Skip results for subdomains outside the target domain or out-of-scope
+		if self.domain and self.domain.name not in subdomain_name:
+			continue
+		scope_checker = SubdomainScopeChecker(self.out_of_scope_subdomains)
+		if scope_checker.is_out_of_scope(subdomain_name):
+			continue
+
+		# Only attach to existing subdomains; create if it belongs to this scan
 		subdomain, _ = Subdomain.objects.get_or_create(
 			name=subdomain_name,
 			scan_history=self.scan,
