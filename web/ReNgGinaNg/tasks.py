@@ -2936,7 +2936,7 @@ def wpscan_scan(self, urls=[], ctx={}, description=None):
 	for subdomain in wp_subdomains:
 		target_url = subdomain.http_url or f'https://{subdomain.name}'
 
-		cmd = f'wpscan --url {target_url} --format json --no-banner --random-user-agent --disable-tls-checks'
+		cmd = f'wpscan --url {target_url} --format json --no-banner --random-user-agent --disable-tls-checks --ignore-main-redirect'
 		if api_key:
 			cmd += f' --api-token {api_key.key}'
 
