@@ -232,4 +232,15 @@ commands+="celery -A ReNgGinaNg.tasks worker --pool=gevent --optimization=fair -
 
 eval "$commands"
 
-wait
+# Monitor workers and restart any that die
+while true; do
+    wait -n 2>/dev/null
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo "A worker process exited with code $EXIT_CODE. Restarting all workers..."
+        # Kill remaining workers and restart everything
+        pkill -f "celery.*worker" 2>/dev/null
+        sleep 2
+        eval "$commands"
+    fi
+done

@@ -355,7 +355,7 @@ def initiate_subscan(
 	}
 
 
-@app.task(name='report', bind=False, queue='report_queue')
+@app.task(name='report', bind=False, queue='report_queue', soft_time_limit=120, time_limit=180)
 def report(ctx={}, description=None):
 	"""Report task running after all other tasks.
 	Mark ScanHistory or SubScan object as completed and update with final
@@ -5131,7 +5131,7 @@ def _warp_disconnect():
 # Scheduled tasks                         #
 #-----------------------------------------#
 
-@app.task(name='scheduled_threat_intel_refresh', bind=False, queue='report_queue')
+@app.task(name='scheduled_threat_intel_refresh', bind=False, queue='run_command_queue', soft_time_limit=600, time_limit=660)
 def scheduled_threat_intel_refresh():
 	"""Daily scheduled refresh of OTX + LeakCheck data for all projects/domains.
 
