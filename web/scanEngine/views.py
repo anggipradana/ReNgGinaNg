@@ -265,6 +265,17 @@ def tool_specific_settings(request, slug):
             messages.add_message(request, messages.INFO, 'theHarvester config updated!')
             return http.HttpResponseRedirect(reverse('tool_settings', kwargs={'slug': slug}))
 
+        elif 'dast_user_agent' in request.POST:
+            ua_value = request.POST.get('dast_user_agent', '').strip() or 'dast-rengginang'
+            Configuration.objects.update_or_create(
+                short_name='dast_user_agent',
+                defaults={'name': 'DAST User-Agent', 'content': ua_value},
+            )
+            messages.add_message(request, messages.INFO, f'DAST User-Agent updated to: {ua_value}')
+            return http.HttpResponseRedirect(reverse('tool_settings', kwargs={'slug': slug}))
+
+    ua_config = Configuration.objects.filter(short_name='dast_user_agent').first()
+    context['dast_user_agent'] = ua_config.content if ua_config else 'dast-rengginang'
     context['settings_nav_active'] = 'active'
     context['tool_settings_li'] = 'active'
     context['settings_ul_show'] = 'show'

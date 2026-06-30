@@ -19,6 +19,29 @@ Settings, API Keys & Tool Settings
 
 {% block main_content %}
 <div class="row">
+  <div class="col-12 mb-2">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title">Global Scan Settings</h4>
+        <p>
+          These settings apply globally to <strong>all</strong> scanning tools (Nuclei, WPScan, httpx, ffuf, Dalfox, CRLFuzz, Wafw00f, etc.)
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="row align-items-end">
+            <div class="col-md-6">
+              <label for="dast_user_agent" class="form-label fw-bold">DAST User-Agent</label>
+              <p class="text-muted mb-1" style="font-size: 0.85em;">User-Agent string sent by all scanning tools when connecting to targets.</p>
+              <input type="text" class="form-control" id="dast_user_agent" name="dast_user_agent" value="{{ dast_user_agent }}" placeholder="dast-rengginang">
+            </div>
+            <div class="col-md-2">
+              <input type="submit" class="btn btn-primary" value="Save">
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
   <div class="col-xl-6 col-md-12 col-sm-12 col-12 mb-2">
     <div class="card">
       <div class="card-body">
