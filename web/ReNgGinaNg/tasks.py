@@ -1623,7 +1623,7 @@ def waf_detection(self, ctx={}, description=None):
 		ctx=ctx
 	)
 
-	cmd = f'wafw00f -i {input_path} -o {self.output_path}'
+	cmd = f'wafw00f -i {input_path} -o {self.output_path} -a "{DAST_USER_AGENT}"'
 	run_command(
 		cmd,
 		history_file=self.history_file,
@@ -1715,6 +1715,7 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	cmd += ' -fr' if follow_redirect else ''
 	cmd += ' -ac' if auto_calibration else ''
 	cmd += f' -mc {mc}' if mc else ''
+	cmd += f' -H "User-Agent: {DAST_USER_AGENT}"'
 	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
 	if formatted_headers:
 		cmd += formatted_headers
@@ -2533,6 +2534,7 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'nuclei -j'
 	cmd += ' -config /root/.config/nuclei/config.yaml' if use_nuclei_conf else ''
 	cmd += f' -irr'
+	cmd += f' -H "User-Agent: {DAST_USER_AGENT}"'
 	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
 	if formatted_headers:
 		cmd += formatted_headers
@@ -2625,7 +2627,7 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
 	if formatted_headers:
 		cmd += formatted_headers
-	cmd += f' --user-agent {user_agent}' if user_agent else ''
+	cmd += f' --user-agent "{user_agent or DAST_USER_AGENT}"'
 	cmd += f' --worker {threads}' if threads else ''
 	cmd += f' --format json'
 
@@ -2748,6 +2750,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'crlfuzz -s'
 	cmd += f' -l {input_path}'
 	cmd += f' -x {proxy}' if proxy else ''
+	cmd += f' -H "User-Agent: {DAST_USER_AGENT}"'
 	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
 	if formatted_headers:
 		cmd += formatted_headers
@@ -2936,7 +2939,7 @@ def wpscan_scan(self, urls=[], ctx={}, description=None):
 	for subdomain in wp_subdomains:
 		target_url = subdomain.http_url or f'https://{subdomain.name}'
 
-		cmd = f'wpscan --url {target_url} --format json --no-banner --random-user-agent --disable-tls-checks --ignore-main-redirect'
+		cmd = f'wpscan --url {target_url} --format json --no-banner --ua "{DAST_USER_AGENT}" --disable-tls-checks --ignore-main-redirect'
 		if api_key:
 			cmd += f' --api-token {api_key.key}'
 
@@ -3080,7 +3083,8 @@ def http_crawl(
 	proxy = get_random_proxy()
 
 	# Run command
-	cmd += f' -cl -ct -rt -location -td -websocket -cname -cdn -probe -random-agent'
+	cmd += f' -cl -ct -rt -location -td -websocket -cname -cdn -probe'
+	cmd += f' -H "User-Agent: {DAST_USER_AGENT}"'
 	cmd += f' -timeout 15'
 	cmd += f' -t {threads}' if threads > 0 else ''
 	cmd += f' --http-proxy {proxy}' if proxy else ''
@@ -3936,7 +3940,7 @@ def _is_wordpress(url):
 			timeout=8,
 			allow_redirects=True,
 			verify=False,
-			headers={'User-Agent': 'Mozilla/5.0'})
+			headers={'User-Agent': DAST_USER_AGENT})
 		if resp.status_code == 200:
 			body = resp.text.lower()
 			# Require at least 2 WordPress-specific markers to avoid FP

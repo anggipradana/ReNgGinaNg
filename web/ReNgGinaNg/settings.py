@@ -38,6 +38,7 @@ DEFAULT_HTTP_TIMEOUT = env.int('DEFAULT_HTTP_TIMEOUT', default=5) # seconds
 DEFAULT_RETRIES = env.int('DEFAULT_RETRIES', default=1)
 DEFAULT_THREADS = env.int('DEFAULT_THREADS', default=30)
 DEFAULT_GET_GPT_REPORT = env.bool('DEFAULT_GET_GPT_REPORT', default=True)
+DAST_USER_AGENT = env('DAST_USER_AGENT', default='dast-rengginang')
 
 # Globals
 ALLOWED_HOSTS = ['*']
